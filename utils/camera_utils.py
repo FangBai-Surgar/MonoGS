@@ -21,6 +21,7 @@ class Camera(nn.Module):
         fovy,
         image_height,
         image_width,
+        cali_id=None,
         device="cuda:0",
     ):
         super(Camera, self).__init__()
@@ -76,28 +77,52 @@ class Camera(nn.Module):
         self.cam_kappa_delta = nn.Parameter(
             torch.tensor([0.0], requires_grad=True, device=device)
         )
-
+        # add calibration identifier for calibration groups
+        if cali_id is not None:
+            self.calibration_identifier = cali_id
+        else:
+            self.calibration_identifier = 0
         # self.projection_matrix = self.projection_matrix.to(device=device)
 
     @staticmethod
     def init_from_dataset(dataset, idx, projection_matrix):
-        gt_color, gt_depth, gt_pose = dataset[idx]
-        return Camera(
-            idx,
-            gt_color,
-            gt_depth,
-            gt_pose,
-            # projection_matrix,
-            dataset.fx,
-            dataset.fy,
-            dataset.cx,
-            dataset.cy,
-            dataset.fovx,
-            dataset.fovy,
-            dataset.height,
-            dataset.width,
-            device=dataset.device,
-        )
+        if dataset.focal_changed: # property of the simulated dataset
+            gt_color, gt_depth, gt_pose, fx, fy, cx, cy, fovx, fovy, height, width, cali_id = dataset[idx]
+            return Camera(
+                idx,
+                gt_color,
+                gt_depth,
+                gt_pose,
+                fx,
+                fy,
+                cx,
+                cy,
+                fovx,
+                fovy,
+                height,
+                width,
+                cali_id,
+                device=dataset.device,
+            )
+        else:
+            gt_color, gt_depth, gt_pose = dataset[idx] 
+            return Camera(
+                idx,
+                gt_color,
+                gt_depth,
+                gt_pose,
+                # projection_matrix,
+                dataset.fx,
+                dataset.fy,
+                dataset.cx,
+                dataset.cy,
+                dataset.fovx,
+                dataset.fovy,
+                dataset.height,
+                dataset.width,
+                None,
+                device=dataset.device,
+            )
 
     @staticmethod
     def init_from_gui(uid, T, FoVx, FoVy, fx, fy, cx, cy, H, W):

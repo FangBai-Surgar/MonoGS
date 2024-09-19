@@ -229,13 +229,21 @@ class SimulatesDatasets(SimulatedDataset):
 
 def load_dataset(args, path, config):
     if config["Dataset"]["type"] == "tum":
-        return TUMDataset(args, path, config)
+        dataset = TUMDataset(args, path, config)
+        dataset.focal_changed = False # Dynamically Adding the Attribute
+        return dataset
     elif config["Dataset"]["type"] == "replica":
-        return ReplicaDataset(args, path, config)
+        dataset = ReplicaDataset(args, path, config)
+        dataset.focal_changed = False
+        return dataset
     elif config["Dataset"]["type"] == "euroc":
-        return EurocDataset(args, path, config)
+        dataset = EurocDataset(args, path, config)
+        dataset.focal_changed = False
+        return dataset
     elif config["Dataset"]["type"] == "realsense":
-        return RealsenseDataset(args, path, config)
+        dataset = RealsenseDataset(args, path, config)
+        dataset.focal_changed = False
+        return dataset
     elif config["Dataset"]["type"] == "simulated":
         return SimulatesDatasets(args, path, config)
     else:

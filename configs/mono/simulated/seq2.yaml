@@ -1,0 +1,6 @@
+inherit_from: "configs/mono/simulated/base_config.yaml"
+
+Dataset:
+  dataset_path: "/home/mia/workspaces/datasets/mono-cali/image_sequence_2/"
+  Calibration:
+    distorted: False

@@ -14,7 +14,7 @@ from gaussian_splatting.scene.gaussian_model import GaussianModel
 from gaussian_splatting.utils.system_utils import mkdir_p
 from gui import gui_utils, slam_gui
 from utils.config_utils import load_config
-from utils.dataset import load_dataset
+from simulated_dataset_loader import load_dataset
 from utils.eval_utils import eval_ate, eval_rendering, save_gaussians
 from utils.logging_utils import Log
 from utils.multiprocessing_utils import FakeQueue
@@ -231,6 +231,8 @@ if __name__ == "__main__":
     parser = ArgumentParser(description="Training script parameters")
     parser.add_argument("--config", type=str)
     parser.add_argument("--eval", action="store_true")
+    parser.add_argument("--require_calibration", action="store_true", default=False)
+    parser.add_argument("--allow_lens_distortion", action="store_true", default=False)
 
     args = parser.parse_args(sys.argv[1:])
 
@@ -241,6 +243,11 @@ if __name__ == "__main__":
 
     config = load_config(args.config)
     save_dir = None
+
+    calib_opts = OnlineCalibrationSettings()
+    # adjust controlo params
+    calib_opts.require_calibration = args.require_calibration
+    calib_opts.allow_lens_distortion = args.require_calibration and args.allow_lens_distortion # activated only when require_calibration = True
 
     if args.eval:
         Log("Running MonoGS in Evaluation Mode")
@@ -253,6 +260,8 @@ if __name__ == "__main__":
         config["Results"]["eval_rendering"] = True
         Log("\tuse_wandb=True")
         config["Results"]["use_wandb"] = True
+        Log("\trequire_calibration=" + str(calib_opts.require_calibration))
+        Log("\tallow_lens_distortion=" + str(calib_opts.allow_lens_distortion))
 
     if config["Results"]["save_results"]:
         mkdir_p(config["Results"]["save_dir"])
@@ -264,6 +273,8 @@ if __name__ == "__main__":
         tmp = args.config
         tmp = tmp.split(".")[0]
         config["Results"]["save_dir"] = save_dir
+        config["calib_opts_require_calibration"] = calib_opts.require_calibration
+        config["calib_opts_allow_lens_distortion"] = calib_opts.allow_lens_distortion
         mkdir_p(save_dir)
         with open(os.path.join(save_dir, "config.yml"), "w") as file:
             documents = yaml.dump(config, file)
@@ -278,10 +289,7 @@ if __name__ == "__main__":
         wandb.define_metric("ate*", step_metric="frame_idx")
 
 
-    calib_opts = OnlineCalibrationSettings()
-    # adjust controlo params
-    calib_opts.require_calibration = True
-    calib_opts.allow_lens_distortion = True  # activated only when require_calibration = True
+
 
 
     slam = SLAM(config, save_dir=save_dir, calib_opts=calib_opts)
