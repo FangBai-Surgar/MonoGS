@@ -491,6 +491,7 @@ class BackEnd(mp.Process):
                         )
                     self.keyframe_optimizers = torch.optim.Adam(pose_opt_params)
                     self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack)
+                    self.calibration_optimizers.maximum_newton_steps = 0 # diable newton update
                     print(f"calibration optimizer initialization. current_window [kf_idx]: {current_window}")
 
                     self.keyframe_optimizers.zero_grad()
