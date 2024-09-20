@@ -126,7 +126,7 @@ class CalibrationOptimizer:
 
         newton_update_error = False
         # implement a Newton step by estimating Hessian from line fitting of History data (focals, focal_grads)
-        if self.maximum_newton_steps > 0 and len(self.focal_stack) and len(self.focal_stack) % self.num_line_elements == 0:
+        if self.maximum_newton_steps > 0 and self.num_line_elements > 0 and len(self.focal_stack) and len(self.focal_stack) % self.num_line_elements == 0:
             focal_stack, focal_grad_stack = self.get_focal_statistics()
             for focals, focal_grads, (calib_id, cam_stack) in zip(focal_stack, focal_grad_stack, self.calibration_groups.items()):                                
                 focal_grad  = self.focal_delta_groups [ calib_id ].grad.cpu().numpy()[0]
@@ -167,8 +167,9 @@ class CalibrationOptimizer:
             focal_grad_vec.append(focal_grad)
             focal_vec.append(focal)
 
-        self.focal_grad_stack.append(np.array(focal_grad_vec))
-        self.focal_stack.append(np.array(focal_vec))
+        if self.num_line_elements > 0:
+            self.focal_grad_stack.append(np.array(focal_grad_vec))
+            self.focal_stack.append(np.array(focal_vec))
 
 
         # if np.linalg.norm( np.array(focal_grad_vec) ) < 0.00001:

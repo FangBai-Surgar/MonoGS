@@ -492,6 +492,7 @@ class BackEnd(mp.Process):
                     self.keyframe_optimizers = torch.optim.Adam(pose_opt_params)
                     self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack)
                     self.calibration_optimizers.maximum_newton_steps = 0 # diable newton update
+                    self.calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
                     print(f"calibration optimizer initialization. current_window [kf_idx]: {current_window}")
 
                     self.keyframe_optimizers.zero_grad()
