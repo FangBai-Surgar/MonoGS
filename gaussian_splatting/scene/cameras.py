@@ -165,6 +165,16 @@ class Camera(nn.Module):
         self.R = R.to(device=self.device)
         self.T = t.to(device=self.device)
 
+    def update_focal_kappa (self, focal, kappa):
+        self.fx = focal
+        self.fy = self.aspect_ratio * focal
+        self.kappa = kappa
+
+    def update_calibration (self, fx, fy, kappa):
+        self.fx = fx
+        self.fy = fy
+        self.kappa = kappa
+
 
 
     @staticmethod

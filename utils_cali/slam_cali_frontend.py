@@ -76,10 +76,8 @@ class FrontEndCali(FrontEnd):
                 # copy the last calibration to current viewpoint
                 if len(self.current_window):
                     last_keyframe_idx = self.current_window[0]
-                    fx = self.cameras[last_keyframe_idx].fx
-                    fy = self.cameras[last_keyframe_idx].fy
-                    kappa = self.cameras[last_keyframe_idx].kappa
-                    self.updateCalibration (viewpoint, fx, fy, kappa)
+                    prev = self.cameras[last_keyframe_idx]
+                    viewpoint.update_calibration (prev.fx, prev.fy, prev.kappa)
 
                 self.cameras[cur_frame_idx] = viewpoint
 
@@ -209,6 +207,8 @@ class FrontEndCali(FrontEnd):
     def focal_tracking (self, cur_frame_idx, viewpoint):
         prev = self.cameras[cur_frame_idx - self.use_every_n_frames]
         viewpoint.update_RT(prev.R, prev.T)
+        # viewpoint.update_focal_kappa(focal = prev.fx, kappa=prev.kappa)
+        viewpoint.update_calibration (fx = prev.fx, fy = prev.fy, kappa = prev.kappa)        
 
         opt_params = []
         opt_params.append(
