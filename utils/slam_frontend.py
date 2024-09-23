@@ -388,10 +388,10 @@ class FrontEnd(mp.Process):
 
                 # copy the last calibration to current viewpoint
                 if len(self.current_window):
-                    last_frame_idx = self.current_window[0]
-                    fx = self.cameras[last_frame_idx].fx
-                    fy = self.cameras[last_frame_idx].fy
-                    kappa = self.cameras[last_frame_idx].kappa
+                    last_keyframe_idx = self.current_window[0]
+                    fx = self.cameras[last_keyframe_idx].fx
+                    fy = self.cameras[last_keyframe_idx].fy
+                    kappa = self.cameras[last_keyframe_idx].kappa
                     self.updateCalibration (viewpoint, fx, fy, kappa)
 
                 self.cameras[cur_frame_idx] = viewpoint
