@@ -14,6 +14,9 @@ from utils.multiprocessing_utils import clone_obj
 from utils.pose_utils import update_pose
 from utils.slam_utils import get_loss_tracking, get_median_depth
 
+from optimizers import CalibrationOptimizer
+from gaussian_scale_space import image_conv_gaussian_separable
+
 
 class FrontEnd(mp.Process):
     def __init__(self, config):
@@ -42,6 +45,10 @@ class FrontEnd(mp.Process):
         self.cameras = dict()
         self.device = "cuda:0"
         self.pause = False
+
+        # calibration control params
+        self.require_calibration = False
+
 
     def set_hyperparams(self):
         self.save_dir = self.config["Results"]["save_dir"]
@@ -399,8 +406,13 @@ class FrontEnd(mp.Process):
                     len(self.current_window) == self.window_size
                 )
 
-                # Tracking
+
+                # focal tracking
+                if self.require_calibration:
+                    self.focal_tracking (cur_frame_idx, viewpoint, gaussian_scale_t = 50, max_iter_num = 50)
+                # pose tracking
                 render_pkg = self.tracking(cur_frame_idx, viewpoint)
+
 
                 current_window_dict = {}
                 current_window_dict[self.current_window[0]] = self.current_window[1:]
@@ -505,3 +517,62 @@ class FrontEnd(mp.Process):
                 elif data[0] == "stop":
                     Log("Frontend Stopped.")
                     break
+
+
+
+    
+    def focal_tracking (self, cur_frame_idx, viewpoint, gaussian_scale_t = 50, max_iter_num = 50):
+        """This method updates focal length only, by fixing the pose and 3D Gaussians
+        """
+        prev = self.cameras[cur_frame_idx - self.use_every_n_frames]
+        viewpoint.update_RT(prev.R, prev.T)
+        # viewpoint.update_focal_kappa(focal = prev.fx, kappa=prev.kappa)
+        viewpoint.update_calibration (fx = prev.fx, fy = prev.fy, kappa = prev.kappa)
+
+        calibration_optimizers = CalibrationOptimizer([viewpoint]) # only one view
+        calibration_optimizers.maximum_newton_steps = 0 # diable newton update
+        calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
+
+        for itr in range(max_iter_num):
+            render_pkg = render(
+                viewpoint, self.gaussians, self.pipeline_params, self.background
+            )
+            image, depth, opacity = (
+                render_pkg["render"],
+                render_pkg["depth"],
+                render_pkg["opacity"],
+            )
+
+            # Gaussian scale space
+            gt_image = viewpoint.original_image.cuda() 
+            mask = (gt_image.sum(dim=0) > self.rgb_boundary_threshold)
+            image_scale_t = image_conv_gaussian_separable(image, sigma=gaussian_scale_t, epsilon=0.01)
+            gt_image_scale_t = image_conv_gaussian_separable(gt_image, sigma=gaussian_scale_t, epsilon=0.01)
+
+            # loss function
+            huber_loss_function = torch.nn.SmoothL1Loss(reduction = 'mean', beta = 1.0)
+            loss = huber_loss_function(image_scale_t*mask, gt_image_scale_t*mask)
+
+            # loss backward to compute gradient
+            calibration_optimizers.zero_grad()
+            loss.backward()
+
+            with torch.no_grad():
+                converged = calibration_optimizers.focal_step(loss) # optimize focal only
+
+            if itr % 2 == 0:
+                self.q_main2vis.put(
+                    gui_utils.GaussianPacket(
+                        current_frame=viewpoint,
+                        gtcolor=viewpoint.original_image,
+                        gtdepth=viewpoint.depth
+                        if not self.monocular
+                        else np.zeros((viewpoint.image_height, viewpoint.image_width)),
+                    )
+                )
+                time.sleep(0.01)
+            if converged:
+                break
+
+        return render_pkg
+    

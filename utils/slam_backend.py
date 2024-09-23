@@ -331,7 +331,8 @@ class BackEnd(mp.Process):
                 # Here we assume a good focal initialization has been attained in frontend PnP module, by fixing 3D Gaussians and poses and then optimizing focal only
                 if self.require_calibration and self.initialized:
                     self.calibration_optimizers.focal_step()
-                    self.calibration_optimizers.kappa_step()
+                    if self.allow_lens_distortion:
+                        self.calibration_optimizers.kappa_step()
                     print(f"calibration step. current_window [kf_idx]: {current_window}")
                 self.calibration_optimizers.zero_grad()
 

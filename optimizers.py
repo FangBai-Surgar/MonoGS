@@ -123,6 +123,7 @@ class CalibrationOptimizer:
         def closure():
             return loss
 
+        converged = False
 
         newton_update_error = False
         # implement a Newton step by estimating Hessian from line fitting of History data (focals, focal_grads)
@@ -178,6 +179,8 @@ class CalibrationOptimizer:
         #     self.update_focal_learning_rate(lr=0.0001)
         # if np.linalg.norm( np.array(focal_grad_vec) ) < 0.0000001:
         #     self.update_focal_learning_rate(lr=0.00001)
+        converged = (np.linalg.norm( np.array(focal_grad_vec) ) < 0.0000001)
+        return converged
 
 
     def kappa_step(self):

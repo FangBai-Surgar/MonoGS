@@ -14,13 +14,19 @@ from utils.multiprocessing_utils import clone_obj
 from utils.pose_utils import update_pose
 from utils.slam_utils import get_loss_tracking, get_median_depth
 
+from optimizers import CalibrationOptimizer
+from gaussian_scale_space import image_conv_gaussian_separable
 from utils.slam_frontend import FrontEnd
 
 
+
 class FrontEndCali(FrontEnd):
+
     def __init__(self, config):
         super().__init__(config)
-    
+
+
+
     def run(self):
         cur_frame_idx = 0
         tic = torch.cuda.Event(enable_timing=True)
@@ -91,7 +97,10 @@ class FrontEndCali(FrontEnd):
                     len(self.current_window) == self.window_size
                 )
 
-                # Tracking
+                # focal tracking
+                if self.require_calibration:
+                    self.focal_tracking (cur_frame_idx, viewpoint, gaussian_scale_t = 50, max_iter_num = 50)
+                # pose tracking
                 render_pkg = self.tracking(cur_frame_idx, viewpoint)
 
                 current_window_dict = {}
@@ -199,65 +208,3 @@ class FrontEndCali(FrontEnd):
                     break
  
 
-
-
-
-
-
-    def focal_tracking (self, cur_frame_idx, viewpoint):
-        prev = self.cameras[cur_frame_idx - self.use_every_n_frames]
-        viewpoint.update_RT(prev.R, prev.T)
-        # viewpoint.update_focal_kappa(focal = prev.fx, kappa=prev.kappa)
-        viewpoint.update_calibration (fx = prev.fx, fy = prev.fy, kappa = prev.kappa)        
-
-        opt_params = []
-        opt_params.append(
-            {
-                "params": [viewpoint.cam_rot_delta],
-                "lr": self.config["Training"]["lr"]["cam_rot_delta"],
-                "name": "rot_{}".format(viewpoint.uid),
-            }
-        )
-        opt_params.append(
-            {
-                "params": [viewpoint.cam_trans_delta],
-                "lr": self.config["Training"]["lr"]["cam_trans_delta"],
-                "name": "trans_{}".format(viewpoint.uid),
-            }
-        )
-
-        focal_optimizer = torch.optim.Adam(opt_params)
-        for tracking_itr in range(self.tracking_itr_num):
-            render_pkg = render(
-                viewpoint, self.gaussians, self.pipeline_params, self.background
-            )
-            image, depth, opacity = (
-                render_pkg["render"],
-                render_pkg["depth"],
-                render_pkg["opacity"],
-            )
-            focal_optimizer.zero_grad()
-            loss_tracking = get_loss_tracking(
-                self.config, image, depth, opacity, viewpoint
-            )
-            loss_tracking.backward()
-
-            with torch.no_grad():
-                focal_optimizer.step()
-                converged = update_pose(viewpoint)
-
-            if tracking_itr % 10 == 0:
-                self.q_main2vis.put(
-                    gui_utils.GaussianPacket(
-                        current_frame=viewpoint,
-                        gtcolor=viewpoint.original_image,
-                        gtdepth=viewpoint.depth
-                        if not self.monocular
-                        else np.zeros((viewpoint.image_height, viewpoint.image_width)),
-                    )
-                )
-            if converged:
-                break
-
-        self.median_depth = get_median_depth(depth, opacity)
-        return render_pkg
