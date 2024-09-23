@@ -80,13 +80,13 @@ class FrontEndCali(FrontEnd):
                 viewpoint.compute_grad_mask(self.config)
 
                 # initialize calibration and pose to the previous camera
-                signal_require_calibration = False
+                signal_calibration_change = False
                 if len(self.current_window):
                     last_keyframe_idx = self.current_window[0]
                     prev = self.cameras[last_keyframe_idx]
                     viewpoint.update_calibration (prev.fx, prev.fy, prev.kappa)
                     viewpoint.update_RT(prev.R, prev.T)
-                    signal_require_calibration = (viewpoint.calibration_identifier != prev.calibration_identifier)
+                    signal_calibration_change = (viewpoint.calibration_identifier != prev.calibration_identifier)
 
                 self.cameras[cur_frame_idx] = viewpoint
 
@@ -101,8 +101,8 @@ class FrontEndCali(FrontEnd):
                 )
 
 
-              # focal tracking
-                if self.require_calibration and self.initialized and signal_require_calibration:
+                # focal tracking
+                if self.require_calibration and self.initialized and signal_calibration_change:
                     self.focal_tracking (cur_frame_idx, viewpoint, gaussian_scale_t = 1.0, max_iter_num = 100)
 
                 # pose tracking
@@ -150,7 +150,7 @@ class FrontEndCali(FrontEnd):
                     )
                 if self.single_thread:
                     create_kf = check_time and create_kf
-                if create_kf or signal_require_calibration:
+                if create_kf or signal_calibration_change:
                     self.current_window, removed = self.add_to_window(
                         cur_frame_idx,
                         curr_visibility,
@@ -172,6 +172,7 @@ class FrontEndCali(FrontEnd):
                     self.request_keyframe(
                         cur_frame_idx, viewpoint, self.current_window, depth_map
                     )
+                    print(f"\nKeyframe {cur_frame_idx} sent to backend:   fx = {viewpoint.fx:.3f}, fy = {viewpoint.fy:.3f}, kappa = {viewpoint.kappa:.6f}, calib_id = {viewpoint.calibration_identifier}")
                 else:
                     self.cleanup(cur_frame_idx)
                 cur_frame_idx += 1
