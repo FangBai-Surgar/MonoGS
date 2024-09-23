@@ -153,7 +153,7 @@ class BackEnd(mp.Process):
             return
 
 
-        frozen_states = 5  if self.calibration_optimizers is not None else -1
+        frozen_states = 0  if self.calibration_optimizers is not None else -1
 
         viewpoint_stack = [self.viewpoints[kf_idx] for kf_idx in current_window]
         random_viewpoint_stack = []
@@ -521,7 +521,16 @@ class BackEnd(mp.Process):
                     self.map(self.current_window, iters=iter_per_kf)
                     self.map(self.current_window, prune=True)
                     self.push_to_frontend("keyframe")
-                    print(f"backend optimized keyframe {cur_frame_idx}: fx = {self.viewpoints[cur_frame_idx].fx:.3f}, fy = {self.viewpoints[cur_frame_idx].fy:.3f}, kappa = {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id = {viewpoint.calibration_identifier}")
+                    print(f"backend optimized keyframe {cur_frame_idx}: fx = {self.viewpoints[cur_frame_idx].fx:.3f}, fy = {self.viewpoints[cur_frame_idx].fy:.3f}, kappa = {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id = {self.viewpoints[cur_frame_idx].calibration_identifier}")
+                    # update all cameras with the same calibration_identifier
+                    if self.calibration_optimizers is not None:
+                        fx = self.viewpoints[cur_frame_idx].fx
+                        fy = self.viewpoints[cur_frame_idx].fy
+                        kappa = self.viewpoints[cur_frame_idx].kappa
+                        for cam_id, viewpoint in self.viewpoints.items():
+                            if viewpoint.calibration_identifier == current_calibration_identifier:
+                                viewpoint.update_calibration(fx, fy, kappa)
+
                 else:
                     raise Exception("Unprocessed data", data)
         while not self.backend_queue.empty():
