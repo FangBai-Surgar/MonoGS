@@ -313,18 +313,22 @@ class BackEnd(mp.Process):
                     self.gaussians.reset_opacity_nonvisible(visibility_filter_acm)
                     gaussian_split = True
 
+                # Structure (3D Gaussian) update
                 self.gaussians.optimizer.step()
                 self.gaussians.optimizer.zero_grad(set_to_none=True)
                 self.gaussians.update_learning_rate(self.iteration_count)
+
+                # Pose update
                 self.keyframe_optimizers.step()
                 self.keyframe_optimizers.zero_grad(set_to_none=True)
-                # Pose update
                 for cam_idx in range(min(frames_to_optimize, len(current_window))):
                     viewpoint = viewpoint_stack[cam_idx]
                     if viewpoint.uid == 0:
                         continue
                     update_pose(viewpoint)
-                # only do calibration if slam has been initialized
+
+                # Calibration update. only do calibration if slam has been initialized.
+                # Here we assume a good focal initialization has been attained in frontend PnP module, by fixing 3D Gaussians and poses and then optimizing focal only
                 if self.require_calibration and self.initialized:
                     self.calibration_optimizers.focal_step()
                     self.calibration_optimizers.kappa_step()
