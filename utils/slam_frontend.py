@@ -484,7 +484,7 @@ class FrontEnd(mp.Process):
                     self.request_keyframe(
                         cur_frame_idx, viewpoint, self.current_window, depth_map
                     )
-                    print(f"\nKeyframe {cur_frame_idx} sent to backend: fx = {viewpoint.fx}, fy = {viewpoint.fy}, kappa = {viewpoint.kappa}")
+                    print(f"\nKeyframe {cur_frame_idx} sent to backend:   fx = {viewpoint.fx:.3f}, fy = {viewpoint.fy:.3f}, kappa = {viewpoint.kappa:.6f}, calib_id = {viewpoint.calibration_identifier}")
                 else:
                     self.cleanup(cur_frame_idx)
                 cur_frame_idx += 1

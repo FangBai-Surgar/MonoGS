@@ -152,6 +152,9 @@ class BackEnd(mp.Process):
         if len(current_window) == 0:
             return
 
+
+        frozen_states = 30  if self.calibration_optimizers is not None else -1
+
         viewpoint_stack = [self.viewpoints[kf_idx] for kf_idx in current_window]
         random_viewpoint_stack = []
         frames_to_optimize = self.config["Training"]["pose_window"]
@@ -162,7 +165,7 @@ class BackEnd(mp.Process):
                 continue
             random_viewpoint_stack.append(viewpoint)
 
-        for _ in range(iters):
+        for cur_itr in range(iters):
             self.iteration_count += 1
             self.last_sent += 1
 
@@ -313,10 +316,16 @@ class BackEnd(mp.Process):
                     self.gaussians.reset_opacity_nonvisible(visibility_filter_acm)
                     gaussian_split = True
 
-                # Structure (3D Gaussian) update
-                self.gaussians.optimizer.step()
-                self.gaussians.optimizer.zero_grad(set_to_none=True)
-                self.gaussians.update_learning_rate(self.iteration_count)
+                # Calibration update. only do calibration if slam has been initialized.
+                # Here we assume a good focal initialization has been attained in frontend PnP module, by fixing 3D Gaussians and poses and then optimizing focal only
+                if self.calibration_optimizers is not None:
+                    if self.require_calibration and self.initialized:
+                        self.calibration_optimizers.focal_step()
+                        if self.allow_lens_distortion and cur_itr >= frozen_states:
+                            self.calibration_optimizers.kappa_step()
+                    self.calibration_optimizers.zero_grad()
+                    if cur_itr < frozen_states:
+                        continue
 
                 # Pose update
                 self.keyframe_optimizers.step()
@@ -327,15 +336,11 @@ class BackEnd(mp.Process):
                         continue
                     update_pose(viewpoint)
 
-                # Calibration update. only do calibration if slam has been initialized.
-                # Here we assume a good focal initialization has been attained in frontend PnP module, by fixing 3D Gaussians and poses and then optimizing focal only
-                if self.calibration_optimizers is not None:
-                    if self.require_calibration and self.initialized:
-                        self.calibration_optimizers.focal_step()
-                        if self.allow_lens_distortion:
-                            self.calibration_optimizers.kappa_step()
-                        # print(f"calibration step. current_window [kf_idx]: {current_window}")
-                    self.calibration_optimizers.zero_grad()
+                # Structure (3D Gaussian) update
+                self.gaussians.optimizer.step()
+                self.gaussians.optimizer.zero_grad(set_to_none=True)
+                self.gaussians.update_learning_rate(self.iteration_count)
+
 
         return gaussian_split
 
@@ -443,7 +448,7 @@ class BackEnd(mp.Process):
                     current_calibration_identifier = self.viewpoints[cur_frame_idx].calibration_identifier
                     calibration_identifier_cnt = 0
 
-                    print(f"backend received keyframe {cur_frame_idx}: fx = {self.viewpoints[cur_frame_idx].fx}, fy = {self.viewpoints[cur_frame_idx].fy}, kappa = {self.viewpoints[cur_frame_idx].kappa}")
+                    print(f"backend received keyframe {cur_frame_idx}:  fx = {self.viewpoints[cur_frame_idx].fx:.3f}, fy = {self.viewpoints[cur_frame_idx].fy:.3f}, kappa = {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id = {viewpoint.calibration_identifier}")
 
                     pose_opt_params = []
                     calib_opt_frames_stack = []
@@ -516,7 +521,7 @@ class BackEnd(mp.Process):
                     self.map(self.current_window, iters=iter_per_kf)
                     self.map(self.current_window, prune=True)
                     self.push_to_frontend("keyframe")
-                    print(f"backend optimized keyframe {cur_frame_idx}: fx = {self.viewpoints[cur_frame_idx].fx}, fy = {self.viewpoints[cur_frame_idx].fy}, kappa = {self.viewpoints[cur_frame_idx].kappa}")
+                    print(f"backend optimized keyframe {cur_frame_idx}: fx = {self.viewpoints[cur_frame_idx].fx:.3f}, fy = {self.viewpoints[cur_frame_idx].fy:.3f}, kappa = {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id = {viewpoint.calibration_identifier}")
                 else:
                     raise Exception("Unprocessed data", data)
         while not self.backend_queue.empty():
