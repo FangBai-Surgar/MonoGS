@@ -153,7 +153,7 @@ class BackEnd(mp.Process):
             return
 
 
-        frozen_states = 30  if self.calibration_optimizers is not None else -1
+        frozen_states = 5  if self.calibration_optimizers is not None else -1
 
         viewpoint_stack = [self.viewpoints[kf_idx] for kf_idx in current_window]
         random_viewpoint_stack = []
@@ -453,7 +453,7 @@ class BackEnd(mp.Process):
                     pose_opt_params = []
                     calib_opt_frames_stack = []
                     frames_to_optimize = self.config["Training"]["pose_window"]
-                    iter_per_kf = self.mapping_itr_num if self.single_thread else 10
+                    iter_per_kf = self.mapping_itr_num if self.single_thread else 20
                     if not self.initialized:
                         if (
                             len(self.current_window)
