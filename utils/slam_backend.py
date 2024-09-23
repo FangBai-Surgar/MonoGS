@@ -439,7 +439,7 @@ class BackEnd(mp.Process):
                     self.current_window = current_window
                     self.add_next_kf(cur_frame_idx, viewpoint, depth_map=depth_map)
 
-                    print(f"backend receive keyframe: fx = {self.viewpoints[cur_frame_idx].fx}, fy = {self.viewpoints[cur_frame_idx].fy}, kappa = {self.viewpoints[cur_frame_idx].kappa}")
+                    print(f"backend receive keyframe {cur_frame_idx}: fx = {self.viewpoints[cur_frame_idx].fx}, fy = {self.viewpoints[cur_frame_idx].fy}, kappa = {self.viewpoints[cur_frame_idx].kappa}")
 
                     pose_opt_params = []
                     calib_opt_frames_stack = []
@@ -508,7 +508,7 @@ class BackEnd(mp.Process):
                     self.map(self.current_window, iters=iter_per_kf)
                     self.map(self.current_window, prune=True)
                     self.push_to_frontend("keyframe")
-                    print(f"backend optimized keyframe: fx = {self.viewpoints[cur_frame_idx].fx}, fy = {self.viewpoints[cur_frame_idx].fy}, kappa = {self.viewpoints[cur_frame_idx].kappa}")
+                    print(f"backend optimized keyframe {cur_frame_idx}: fx = {self.viewpoints[cur_frame_idx].fx}, fy = {self.viewpoints[cur_frame_idx].fy}, kappa = {self.viewpoints[cur_frame_idx].kappa}")
                 else:
                     raise Exception("Unprocessed data", data)
         while not self.backend_queue.empty():
