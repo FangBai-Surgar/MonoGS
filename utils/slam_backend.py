@@ -443,7 +443,7 @@ class BackEnd(mp.Process):
                     current_calibration_identifier = self.viewpoints[cur_frame_idx].calibration_identifier
                     calibration_identifier_cnt = 0
 
-                    print(f"backend receive keyframe {cur_frame_idx}: fx = {self.viewpoints[cur_frame_idx].fx}, fy = {self.viewpoints[cur_frame_idx].fy}, kappa = {self.viewpoints[cur_frame_idx].kappa}")
+                    print(f"backend received keyframe {cur_frame_idx}: fx = {self.viewpoints[cur_frame_idx].fx}, fy = {self.viewpoints[cur_frame_idx].fy}, kappa = {self.viewpoints[cur_frame_idx].kappa}")
 
                     pose_opt_params = []
                     calib_opt_frames_stack = []

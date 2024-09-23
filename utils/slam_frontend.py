@@ -392,13 +392,13 @@ class FrontEnd(mp.Process):
                 viewpoint.compute_grad_mask(self.config)
 
                 # initialize calibration and pose to the previous camera
-                signal_require_calibration = False
+                signal_calibration_change = False
                 if len(self.current_window):
                     last_keyframe_idx = self.current_window[0]
                     prev = self.cameras[last_keyframe_idx]
                     viewpoint.update_calibration (prev.fx, prev.fy, prev.kappa)
                     viewpoint.update_RT(prev.R, prev.T)
-                    signal_require_calibration = (viewpoint.calibration_identifier != prev.calibration_identifier)
+                    signal_calibration_change = (viewpoint.calibration_identifier != prev.calibration_identifier)
 
                 self.cameras[cur_frame_idx] = viewpoint
 
@@ -414,7 +414,7 @@ class FrontEnd(mp.Process):
 
 
                 # focal tracking
-                if self.require_calibration and self.initialized and 1:
+                if self.require_calibration and self.initialized and signal_calibration_change:
                     self.focal_tracking (cur_frame_idx, viewpoint, gaussian_scale_t = 1.0, max_iter_num = 100)
 
                 # pose tracking
@@ -462,7 +462,7 @@ class FrontEnd(mp.Process):
                     )
                 if self.single_thread:
                     create_kf = check_time and create_kf
-                if create_kf or signal_require_calibration:
+                if create_kf or signal_calibration_change:
                     self.current_window, removed = self.add_to_window(
                         cur_frame_idx,
                         curr_visibility,
@@ -597,7 +597,7 @@ class FrontEnd(mp.Process):
                 time.sleep(0.01)
             if converged:
                 break
-        print(f"end focal_tracking")
+        print(f"initialize focal length from tracking")
 
         return render_pkg
     
