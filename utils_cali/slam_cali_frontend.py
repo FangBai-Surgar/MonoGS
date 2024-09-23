@@ -79,11 +79,14 @@ class FrontEndCali(FrontEnd):
                 )
                 viewpoint.compute_grad_mask(self.config)
 
-                # copy the last calibration to current viewpoint
+                # initialize calibration and pose to the previous camera
+                signal_require_calibration = False
                 if len(self.current_window):
                     last_keyframe_idx = self.current_window[0]
                     prev = self.cameras[last_keyframe_idx]
                     viewpoint.update_calibration (prev.fx, prev.fy, prev.kappa)
+                    viewpoint.update_RT(prev.R, prev.T)
+                    signal_require_calibration = (viewpoint.calibration_identifier != prev.calibration_identifier)
 
                 self.cameras[cur_frame_idx] = viewpoint
 
@@ -97,11 +100,14 @@ class FrontEndCali(FrontEnd):
                     len(self.current_window) == self.window_size
                 )
 
-                # focal tracking
-                if self.require_calibration:
-                    self.focal_tracking (cur_frame_idx, viewpoint, gaussian_scale_t = 50, max_iter_num = 50)
+
+              # focal tracking
+                if self.require_calibration and self.initialized and signal_require_calibration:
+                    self.focal_tracking (cur_frame_idx, viewpoint, gaussian_scale_t = 1.0, max_iter_num = 100)
+
                 # pose tracking
                 render_pkg = self.tracking(cur_frame_idx, viewpoint)
+
 
                 current_window_dict = {}
                 current_window_dict[self.current_window[0]] = self.current_window[1:]
@@ -144,7 +150,7 @@ class FrontEndCali(FrontEnd):
                     )
                 if self.single_thread:
                     create_kf = check_time and create_kf
-                if create_kf:
+                if create_kf or signal_require_calibration:
                     self.current_window, removed = self.add_to_window(
                         cur_frame_idx,
                         curr_visibility,

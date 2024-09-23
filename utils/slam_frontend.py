@@ -414,7 +414,7 @@ class FrontEnd(mp.Process):
 
 
                 # focal tracking
-                if self.require_calibration and self.initialized and signal_require_calibration:
+                if self.require_calibration and self.initialized and 1:
                     self.focal_tracking (cur_frame_idx, viewpoint, gaussian_scale_t = 1.0, max_iter_num = 100)
 
                 # pose tracking
@@ -484,7 +484,7 @@ class FrontEnd(mp.Process):
                     self.request_keyframe(
                         cur_frame_idx, viewpoint, self.current_window, depth_map
                     )
-                    print(f"Keyframe {cur_frame_idx} sent to backend: fx = {viewpoint.fx}, fy = {viewpoint.fy}, kappa = {viewpoint.kappa}")
+                    print(f"\nKeyframe {cur_frame_idx} sent to backend: fx = {viewpoint.fx}, fy = {viewpoint.fy}, kappa = {viewpoint.kappa}")
                 else:
                     self.cleanup(cur_frame_idx)
                 cur_frame_idx += 1
@@ -531,11 +531,6 @@ class FrontEnd(mp.Process):
     
     def focal_tracking (self, cur_frame_idx, viewpoint, gaussian_scale_t = 0.0, max_iter_num = 100):
 
-        prev = self.cameras[cur_frame_idx - self.use_every_n_frames]
-        # viewpoint.update_RT(prev.R, prev.T)
-        # viewpoint.update_focal_kappa(focal = prev.fx, kappa=prev.kappa)
-        viewpoint.update_calibration (fx = prev.fx, fy = prev.fy, kappa = prev.kappa)
-
         viewpoint_stack = []
         viewpoint_stack.append(viewpoint)
 
@@ -563,18 +558,20 @@ class FrontEnd(mp.Process):
                 render_pkg["opacity"],
             )
 
-            # Gaussian scale space            
-            gt_image = viewpoint.original_image.cuda() 
-            mask = (gt_image.sum(dim=0) > rgb_boundary_threshold)
-
             # loss function
             if gaussian_scale_t > 0.5:
+                # Gaussian scale space            
+                gt_image = viewpoint.original_image.cuda() 
+                mask = (gt_image.sum(dim=0) > rgb_boundary_threshold)
+
                 image_scale_t = image_conv_gaussian_separable(image, sigma=gaussian_scale_t, epsilon=0.01)
                 gt_image_scale_t = image_conv_gaussian_separable(gt_image, sigma=gaussian_scale_t, epsilon=0.01)
                 huber_loss_function = torch.nn.SmoothL1Loss(reduction = 'mean', beta = 1.0)
                 loss = huber_loss_function(image_scale_t*mask, gt_image_scale_t*mask)
                 loss.backward()
+
             else:
+                # MonoGS tracking loss
                 loss_tracking = get_loss_tracking(
                     self.config, image, depth, opacity, viewpoint
                 )
@@ -583,8 +580,9 @@ class FrontEnd(mp.Process):
 
             with torch.no_grad():
                 converged = calibration_optimizers.focal_step() # optimize focal only
-                pose_optimizer.step()
-                converged = False
+                if itr > 30:
+                    pose_optimizer.step()
+                # converged = False
 
             if itr % 2 == 0:
                 self.q_main2vis.put(

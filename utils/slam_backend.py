@@ -329,12 +329,13 @@ class BackEnd(mp.Process):
 
                 # Calibration update. only do calibration if slam has been initialized.
                 # Here we assume a good focal initialization has been attained in frontend PnP module, by fixing 3D Gaussians and poses and then optimizing focal only
-                if self.require_calibration and self.initialized:
-                    self.calibration_optimizers.focal_step()
-                    if self.allow_lens_distortion:
-                        self.calibration_optimizers.kappa_step()
-                    # print(f"calibration step. current_window [kf_idx]: {current_window}")
-                self.calibration_optimizers.zero_grad()
+                if self.calibration_optimizers is not None:
+                    if self.require_calibration and self.initialized:
+                        self.calibration_optimizers.focal_step()
+                        if self.allow_lens_distortion:
+                            self.calibration_optimizers.kappa_step()
+                        # print(f"calibration step. current_window [kf_idx]: {current_window}")
+                    self.calibration_optimizers.zero_grad()
 
         return gaussian_split
 
@@ -439,6 +440,9 @@ class BackEnd(mp.Process):
                     self.current_window = current_window
                     self.add_next_kf(cur_frame_idx, viewpoint, depth_map=depth_map)
 
+                    current_calibration_identifier = self.viewpoints[cur_frame_idx].calibration_identifier
+                    calibration_identifier_cnt = 0
+
                     print(f"backend receive keyframe {cur_frame_idx}: fx = {self.viewpoints[cur_frame_idx].fx}, fy = {self.viewpoints[cur_frame_idx].fy}, kappa = {self.viewpoints[cur_frame_idx].kappa}")
 
                     pose_opt_params = []
@@ -480,7 +484,8 @@ class BackEnd(mp.Process):
                                     "name": "trans_{}".format(viewpoint.uid),
                                 }
                             )
-                            calib_opt_frames_stack.append(viewpoint)                            
+                            calib_opt_frames_stack.append(viewpoint)
+                            calibration_identifier_cnt += 1 if viewpoint.calibration_identifier == current_calibration_identifier else 0
 
                         pose_opt_params.append(
                             {
@@ -497,13 +502,16 @@ class BackEnd(mp.Process):
                             }
                         )
                     self.keyframe_optimizers = torch.optim.Adam(pose_opt_params)
-                    self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack)
-                    self.calibration_optimizers.maximum_newton_steps = 0 # diable newton update
-                    self.calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
-                    print(f"calibration optimizer initialization. current_window [kf_idx]: {current_window}")
-
                     self.keyframe_optimizers.zero_grad()
-                    self.calibration_optimizers.zero_grad()
+
+                    if calibration_identifier_cnt >= 2:
+                        self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack)
+                        self.calibration_optimizers.maximum_newton_steps = 0 # diable newton update
+                        self.calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
+                        print(f"calibration optimizer. current_window [kf_idx]: {current_window}")
+                        self.calibration_optimizers.zero_grad()
+                    else:
+                        self.calibration_optimizers = None
 
                     self.map(self.current_window, iters=iter_per_kf)
                     self.map(self.current_window, prune=True)
