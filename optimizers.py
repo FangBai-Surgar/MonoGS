@@ -163,7 +163,7 @@ class CalibrationOptimizer:
                 viewpoint_cam.fx += focal_delta
                 viewpoint_cam.fy += viewpoint_cam.aspect_ratio * focal_delta
             focal_grad  = self.focal_delta_groups [ calib_id ].grad.cpu().numpy()[0]
-            print(f"\n\tfocal_update = {focal_delta},\tgradient = {focal_grad}")
+            # print(f"\n\tfocal_update = {focal_delta},\tgradient = {focal_grad}")
             
             focal_grad_vec.append(focal_grad)
             focal_vec.append(focal)
@@ -191,7 +191,7 @@ class CalibrationOptimizer:
             for viewpoint_cam in cam_stack:
                 viewpoint_cam.kappa += kappa_delta
             kappa_grad  = self.kappa_delta_groups [ calib_id ].grad.cpu().numpy()[0]
-            print(f"\tkappa_update = {kappa_delta},\tgradient = {kappa_grad}")
+            # print(f"\tkappa_update = {kappa_delta},\tgradient = {kappa_grad}")
 
 
 

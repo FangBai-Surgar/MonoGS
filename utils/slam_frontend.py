@@ -200,6 +200,7 @@ class FrontEnd(mp.Process):
                 break
 
         self.median_depth = get_median_depth(depth, opacity)
+        print(f"end pose_tracking")
         return render_pkg
 
     def is_keyframe(
@@ -327,17 +328,18 @@ class FrontEnd(mp.Process):
 
     def run(self):
         cur_frame_idx = 0
-        projection_matrix = getProjectionMatrix2(
-            znear=0.01,
-            zfar=100.0,
-            fx=self.dataset.fx,
-            fy=self.dataset.fy,
-            cx=self.dataset.cx,
-            cy=self.dataset.cy,
-            W=self.dataset.width,
-            H=self.dataset.height,
-        ).transpose(0, 1)
-        projection_matrix = projection_matrix.to(device=self.device)
+        # projection_matrix = getProjectionMatrix2(
+        #     znear=0.01,
+        #     zfar=100.0,
+        #     fx=self.dataset.fx,
+        #     fy=self.dataset.fy,
+        #     cx=self.dataset.cx,
+        #     cy=self.dataset.cy,
+        #     W=self.dataset.width,
+        #     H=self.dataset.height,
+        # ).transpose(0, 1)
+        # projection_matrix = projection_matrix.to(device=self.device)
+        projection_matrix = None
         tic = torch.cuda.Event(enable_timing=True)
         toc = torch.cuda.Event(enable_timing=True)
 
@@ -407,11 +409,11 @@ class FrontEnd(mp.Process):
                 )
 
 
-                # focal tracking
-                if self.require_calibration:
-                    self.focal_tracking (cur_frame_idx, viewpoint, gaussian_scale_t = 50, max_iter_num = 50)
                 # pose tracking
                 render_pkg = self.tracking(cur_frame_idx, viewpoint)
+                # focal tracking
+                if self.require_calibration and self.initialized:
+                    self.focal_tracking (cur_frame_idx, viewpoint, gaussian_scale_t = 50, max_iter_num = 50)
 
 
                 current_window_dict = {}
@@ -477,6 +479,7 @@ class FrontEnd(mp.Process):
                     self.request_keyframe(
                         cur_frame_idx, viewpoint, self.current_window, depth_map
                     )
+                    print(f"Keyframe send to backend: fx = {viewpoint.fx}, fy = {viewpoint.fy}, kappa = {viewpoint.kappa}")
                 else:
                     self.cleanup(cur_frame_idx)
                 cur_frame_idx += 1
@@ -521,19 +524,27 @@ class FrontEnd(mp.Process):
 
 
     
-    def focal_tracking (self, cur_frame_idx, viewpoint, gaussian_scale_t = 50, max_iter_num = 50):
+    def focal_tracking (self, cur_frame_idx, viewpoint, gaussian_scale_t = 10, max_iter_num = 20):
         """This method updates focal length only, by fixing the pose and 3D Gaussians
         """
         prev = self.cameras[cur_frame_idx - self.use_every_n_frames]
-        viewpoint.update_RT(prev.R, prev.T)
+        # viewpoint.update_RT(prev.R, prev.T)
         # viewpoint.update_focal_kappa(focal = prev.fx, kappa=prev.kappa)
         viewpoint.update_calibration (fx = prev.fx, fy = prev.fy, kappa = prev.kappa)
+
+        viewpoint_stack = []
+        viewpoint_stack.append(viewpoint)
 
         calibration_optimizers = CalibrationOptimizer([viewpoint]) # only one view
         calibration_optimizers.maximum_newton_steps = 0 # diable newton update
         calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
 
+        rgb_boundary_threshold = 0.01
+
         for itr in range(max_iter_num):
+
+            # print(f"focal_tracking iter [{itr}]: fx = {viewpoint.fx}, fy = {viewpoint.fy}, kappa = {viewpoint.kappa}")
+
             render_pkg = render(
                 viewpoint, self.gaussians, self.pipeline_params, self.background
             )
@@ -543,9 +554,9 @@ class FrontEnd(mp.Process):
                 render_pkg["opacity"],
             )
 
-            # Gaussian scale space
+            # Gaussian scale space            
             gt_image = viewpoint.original_image.cuda() 
-            mask = (gt_image.sum(dim=0) > self.rgb_boundary_threshold)
+            mask = (gt_image.sum(dim=0) > rgb_boundary_threshold)
             image_scale_t = image_conv_gaussian_separable(image, sigma=gaussian_scale_t, epsilon=0.01)
             gt_image_scale_t = image_conv_gaussian_separable(gt_image, sigma=gaussian_scale_t, epsilon=0.01)
 
@@ -558,7 +569,7 @@ class FrontEnd(mp.Process):
             loss.backward()
 
             with torch.no_grad():
-                converged = calibration_optimizers.focal_step(loss) # optimize focal only
+                converged = calibration_optimizers.focal_step() # optimize focal only
 
             if itr % 2 == 0:
                 self.q_main2vis.put(
@@ -573,6 +584,7 @@ class FrontEnd(mp.Process):
                 time.sleep(0.01)
             if converged:
                 break
+        print(f"end focal_tracking")
 
         return render_pkg
     

@@ -333,7 +333,7 @@ class BackEnd(mp.Process):
                     self.calibration_optimizers.focal_step()
                     if self.allow_lens_distortion:
                         self.calibration_optimizers.kappa_step()
-                    print(f"calibration step. current_window [kf_idx]: {current_window}")
+                    # print(f"calibration step. current_window [kf_idx]: {current_window}")
                 self.calibration_optimizers.zero_grad()
 
         return gaussian_split
@@ -439,6 +439,8 @@ class BackEnd(mp.Process):
                     self.current_window = current_window
                     self.add_next_kf(cur_frame_idx, viewpoint, depth_map=depth_map)
 
+                    print(f"backend receive keyframe: fx = {self.viewpoints[cur_frame_idx].fx}, fy = {self.viewpoints[cur_frame_idx].fy}, kappa = {self.viewpoints[cur_frame_idx].kappa}")
+
                     pose_opt_params = []
                     calib_opt_frames_stack = []
                     frames_to_optimize = self.config["Training"]["pose_window"]
@@ -506,6 +508,7 @@ class BackEnd(mp.Process):
                     self.map(self.current_window, iters=iter_per_kf)
                     self.map(self.current_window, prune=True)
                     self.push_to_frontend("keyframe")
+                    print(f"backend optimized keyframe: fx = {self.viewpoints[cur_frame_idx].fx}, fy = {self.viewpoints[cur_frame_idx].fy}, kappa = {self.viewpoints[cur_frame_idx].kappa}")
                 else:
                     raise Exception("Unprocessed data", data)
         while not self.backend_queue.empty():
