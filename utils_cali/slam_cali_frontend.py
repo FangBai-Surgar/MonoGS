@@ -200,3 +200,64 @@ class FrontEndCali(FrontEnd):
                     Log("Frontend Stopped.")
                     break
  
+
+
+
+
+
+
+    def focal_tracking (self, cur_frame_idx, viewpoint):
+        prev = self.cameras[cur_frame_idx - self.use_every_n_frames]
+        viewpoint.update_RT(prev.R, prev.T)
+
+        opt_params = []
+        opt_params.append(
+            {
+                "params": [viewpoint.cam_rot_delta],
+                "lr": self.config["Training"]["lr"]["cam_rot_delta"],
+                "name": "rot_{}".format(viewpoint.uid),
+            }
+        )
+        opt_params.append(
+            {
+                "params": [viewpoint.cam_trans_delta],
+                "lr": self.config["Training"]["lr"]["cam_trans_delta"],
+                "name": "trans_{}".format(viewpoint.uid),
+            }
+        )
+
+        focal_optimizer = torch.optim.Adam(opt_params)
+        for tracking_itr in range(self.tracking_itr_num):
+            render_pkg = render(
+                viewpoint, self.gaussians, self.pipeline_params, self.background
+            )
+            image, depth, opacity = (
+                render_pkg["render"],
+                render_pkg["depth"],
+                render_pkg["opacity"],
+            )
+            focal_optimizer.zero_grad()
+            loss_tracking = get_loss_tracking(
+                self.config, image, depth, opacity, viewpoint
+            )
+            loss_tracking.backward()
+
+            with torch.no_grad():
+                focal_optimizer.step()
+                converged = update_pose(viewpoint)
+
+            if tracking_itr % 10 == 0:
+                self.q_main2vis.put(
+                    gui_utils.GaussianPacket(
+                        current_frame=viewpoint,
+                        gtcolor=viewpoint.original_image,
+                        gtdepth=viewpoint.depth
+                        if not self.monocular
+                        else np.zeros((viewpoint.image_height, viewpoint.image_width)),
+                    )
+                )
+            if converged:
+                break
+
+        self.median_depth = get_median_depth(depth, opacity)
+        return render_pkg
