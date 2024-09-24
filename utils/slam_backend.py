@@ -535,6 +535,15 @@ class BackEnd(mp.Process):
 
                 else:
                     raise Exception("Unprocessed data", data)
+
+                        
+        # print final camera calibrations for debugging
+        print(f"\n\nCalibration results")
+        for cam_id, viewpoint in self.viewpoints.items():
+            print(f"cam_id: {cam_id}")
+            print(f"\tcalib_id: {viewpoint.calibration_identifier}: fx = {viewpoint.fx:.3f}, fy = {viewpoint.fy:.3f}, kappa = {viewpoint.kappa:.6f}")
+
+
         while not self.backend_queue.empty():
             self.backend_queue.get()
         while not self.frontend_queue.empty():
