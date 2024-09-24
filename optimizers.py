@@ -33,6 +33,8 @@ class CalibrationOptimizer:
         self.focal_optimizer = None
         self.kappa_optimizer = None
 
+        self.current_calib_id = -1
+
         self.__init_calibration_groups()
         self.__init_optimizers()
         self.zero_grad()
@@ -48,7 +50,7 @@ class CalibrationOptimizer:
 
         self.FOCAL_LENGTH_RANGE = [0, 2000]
 
-        self.current_calib_id = -1
+        
 
 
     def __init_calibration_groups(self):
@@ -69,6 +71,7 @@ class CalibrationOptimizer:
             num_views = len(cam_stack)
             if calib_id > self.current_calib_id and num_views >= 2:
                 self.current_calib_id = calib_id
+        print(f"self.current_calib_id = {self.current_calib_id}")
 
 
 
@@ -122,7 +125,7 @@ class CalibrationOptimizer:
 
 
     # update cameras with calibration_identifier
-    def __update_focal_estimates (self, calibration_identifier = -1):
+    def __update_focal_estimates (self, calibration_identifier):
         for calib_id, cam_stack in self.calibration_groups.items():
             if calib_id == calibration_identifier:
                 focal_delta = self.focal_delta_groups [ calib_id ].data.cpu().numpy()[0]
@@ -137,7 +140,7 @@ class CalibrationOptimizer:
 
 
     # update cameras' with calibration_identifier
-    def __update_kappa_estimates (self, calibration_identifier = -1):
+    def __update_kappa_estimates (self, calibration_identifier):
         for calib_id, cam_stack in self.calibration_groups.items():
             if calib_id == calibration_identifier:
                 kappa_delta = self.kappa_delta_groups [ calib_id ].data.cpu().numpy()[0]
@@ -152,7 +155,7 @@ class CalibrationOptimizer:
     # Newton step implementation for focal length optimization
     # only availabe for the most recent calibration identifier, where:
     # calibration_identifier = self.current_calib_id
-    def __newton_step_impl (self, calibration_identifier = -1):
+    def __newton_step_impl (self, calibration_identifier):
         # First perform a standard gradient descent, and then modify the update with newton step if necessary
         self.focal_optimizer.step()
 
@@ -160,7 +163,7 @@ class CalibrationOptimizer:
 
             if calib_id == calibration_identifier:
 
-                focal_stack, focal_grad_stack = self.get_focal_statistics(calibration_identifier = calibration_identifier)
+                focal_stack, focal_grad_stack = self.get_focal_statistics()
                 if focal_stack is None or len(focal_stack) == 0:
                     return False
 
@@ -189,7 +192,7 @@ class CalibrationOptimizer:
         # implement a Newton step by estimating Hessian from line fitting of History data (focals, focal_grads)
         if self.maximum_newton_steps > 0 and self.num_line_elements > 0 and len(self.focal_stack) and len(self.focal_stack) % self.num_line_elements == 0:
 
-            newton_status = self.__newton_step_impl (self, calibration_identifier = self.current_calib_id)
+            newton_status = self.__newton_step_impl (calibration_identifier = self.current_calib_id)
             if newton_status:
                 rich.print(f"\n[bold magenta]Newton update step[/bold magenta]")
                 self.maximum_newton_steps -= 1
@@ -208,7 +211,7 @@ class CalibrationOptimizer:
                 self.focal_optimizer.step()
 
 
-        focal, focal_grad = self.__update_focal_estimates (self, calibration_identifier = self.current_calib_id)
+        (focal, focal_grad) = self.__update_focal_estimates (calibration_identifier = self.current_calib_id)
         
         if self.num_line_elements > 0:
             self.focal_grad_stack.append(focal_grad)
@@ -261,9 +264,7 @@ class CalibrationOptimizer:
 
 
 
-    def get_focal_statistics (self, all = False, calibration_identifier = -1):
-        if calibration_identifier != self.current_calib_id:
-            return None, None
+    def get_focal_statistics (self, all = False):
         if all:
             focal_grad_stack  = np.array(self.focal_grad_stack)
             focal_stack = np.array(self.focal_stack)
