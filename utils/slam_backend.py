@@ -319,6 +319,9 @@ class BackEnd(mp.Process):
                 # Calibration update. only do calibration if slam has been initialized.
                 # Here we assume a good focal initialization has been attained in frontend PnP module, by fixing 3D Gaussians and poses and then optimizing focal only
                 if (self.calibration_optimizers is not None) and (not prune) and (not gaussian_split):
+                    if cur_itr == 5:
+                        self.calibration_optimizers.update_focal_learning_rate(lr = None, scale = 0.1)
+
                     if self.require_calibration and self.initialized:
                         self.calibration_optimizers.focal_step()
                         if cur_itr < frozen_states:
@@ -512,9 +515,10 @@ class BackEnd(mp.Process):
                     self.keyframe_optimizers.zero_grad()
 
                     if calibration_identifier_cnt >= 2:
-                        self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack)
+                        self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack, 500)
                         self.calibration_optimizers.maximum_newton_steps = 0 # diable newton update
                         self.calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
+                        self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)
                         print(f"calibration optimizer. current_window [kf_idx]: {current_window}")
                         self.calibration_optimizers.zero_grad()
                     else:

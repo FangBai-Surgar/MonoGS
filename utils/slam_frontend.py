@@ -534,9 +534,14 @@ class FrontEnd(mp.Process):
         viewpoint_stack = []
         viewpoint_stack.append(viewpoint)
 
-        calibration_optimizers = CalibrationOptimizer(viewpoint_stack) # only one view
+        H = viewpoint.image_height
+        W = viewpoint.image_width
+        focal_ref = np.sqrt(H*H + W*W)/2
+
+        calibration_optimizers = CalibrationOptimizer(viewpoint_stack, focal_ref) # only one view
         calibration_optimizers.maximum_newton_steps = 0 # diable newton update
         calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
+        calibration_optimizers.update_focal_learning_rate(lr = 0.01)
 
         pose_optimizer = PoseOptimizer(viewpoint_stack)
 
@@ -580,7 +585,7 @@ class FrontEnd(mp.Process):
 
             with torch.no_grad():
                 converged = calibration_optimizers.focal_step() # optimize focal only
-                if itr > 30:
+                if itr > 5:
                     pose_optimizer.step()
                 # converged = False
 

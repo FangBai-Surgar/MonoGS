@@ -22,7 +22,7 @@ from rich.console import Console
 class CalibrationOptimizer:
 
 
-    def __init__(self, viewpoint_stack) -> None:
+    def __init__(self, viewpoint_stack, focal_reference = None) -> None:
 
         self.viewpoint_stack = viewpoint_stack
 
@@ -50,8 +50,11 @@ class CalibrationOptimizer:
 
         self.FOCAL_LENGTH_RANGE = [0, 2000]
 
-        
-
+        if focal_reference is not None:
+            self.focal_gradient_normalizer = focal_reference
+        else:
+            self.focal_gradient_normalizer = viewpoint_stack[0].fx
+            
 
     def __init_calibration_groups(self):
         self.calibration_groups = {}
@@ -82,7 +85,7 @@ class CalibrationOptimizer:
             focal_opt_params.append(
                     {
                         "params": [ self.focal_delta_groups [ calib_id ] ],
-                        "lr": 0.1,
+                        "lr": 0.01,
                         "name": "calibration_f_{}".format(calib_id),
                     }
                 )
@@ -109,6 +112,8 @@ class CalibrationOptimizer:
 
             for viewpoint_cam in cam_stack:
                 self.focal_delta_groups [ calib_id ].grad += viewpoint_cam.cam_focal_delta.grad
+            
+            self.focal_delta_groups [ calib_id ].grad *= self.focal_gradient_normalizer  # normalized_focal_grad = real_focal_grad * normalizer 
 
 
 
@@ -129,13 +134,14 @@ class CalibrationOptimizer:
         for calib_id, cam_stack in self.calibration_groups.items():
             if calib_id == calibration_identifier:
                 focal_delta = self.focal_delta_groups [ calib_id ].data.cpu().numpy()[0]
+                focal_delta *= self.focal_gradient_normalizer  # real_focal = normalized_focal * normalizer
                 for viewpoint_cam in cam_stack:
                     focal = viewpoint_cam.fx
                     viewpoint_cam.fx += focal_delta
                     viewpoint_cam.fy += viewpoint_cam.aspect_ratio * focal_delta
                 focal_grad  = self.focal_delta_groups [ calib_id ].grad.cpu().numpy()[0]
-                # print(f"\n\tfocal_update = {focal_delta},\tgradient = {focal_grad}")
-                return focal, focal_grad
+                print(f"\tfocal_update = {focal_delta},\tgradient_normalized = {focal_grad}")
+                return focal/self.focal_gradient_normalizer, focal_grad
 
 
 
@@ -217,7 +223,7 @@ class CalibrationOptimizer:
             self.focal_grad_stack.append(focal_grad)
             self.focal_stack.append(focal)
 
-        converged = ( np.abs(focal_grad) < 0.0000001)
+        converged = ( np.abs(focal_grad) < 0.00001)
         return converged
 
 
@@ -248,7 +254,7 @@ class CalibrationOptimizer:
                 param_group["lr"] = lr
             if scale is not None:
                 lr = param_group["lr"]
-                param_group["lr"] = scale * lr if lr >= 0.01 else lr
+                param_group["lr"] = scale * lr if lr >= 0.001 else lr
         rich.print("\n[bold green]focal_optimizer.param_groups:[/bold green]", self.focal_optimizer.param_groups)
 
 
@@ -259,7 +265,7 @@ class CalibrationOptimizer:
                 param_group["lr"] = lr
             if scale is not None:
                 lr = param_group["lr"]
-                param_group["lr"] = scale * lr if lr >= 0.001 else lr
+                param_group["lr"] = scale * lr if lr >= 0.0001 else lr
         rich.print("\n[bold green]kappa_optimizer.param_groups:[/bold green]", self.kappa_optimizer.param_groups)
 
 

@@ -196,7 +196,7 @@ class SFM(mp.Process):
                     viewpoint_cam.fy = viewpoint_cam.aspect_ratio * focal
                     viewpoint_cam.kappa = 0.0
 
-                self.calibration_optimizer.update_focal_learning_rate(lr = 2.0)  # start from a large leraning rate as we modify focal abruptly.
+                self.calibration_optimizer.update_focal_learning_rate(lr = 0.1)  # start from a large leraning rate as we modify focal abruptly.
 
                 if self.use_gui:
                     cam_cnt = (cam_cnt+1) % len(self.viewpoint_stack)
@@ -205,10 +205,10 @@ class SFM(mp.Process):
 
 
 
-            if iteration > self.start_calib_iter and (iteration - self.start_calib_iter) % 50 == 0:
+            if iteration > self.start_calib_iter and (iteration - self.start_calib_iter) % 20 == 0:
                 self.calibration_optimizer.update_kappa_learning_rate(lr = None, scale = 0.1)
                 self.calibration_optimizer.update_focal_learning_rate(lr = None, scale = 0.1)
-
+    
 
             self.gaussians.update_learning_rate(iteration)
 
