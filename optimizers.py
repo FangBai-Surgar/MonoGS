@@ -48,6 +48,8 @@ class CalibrationOptimizer:
 
         self.FOCAL_LENGTH_RANGE = [0, 2000]
 
+        self.current_calib_id = -1
+
 
     def __init_calibration_groups(self):
         self.calibration_groups = {}
@@ -61,6 +63,12 @@ class CalibrationOptimizer:
             self.kappa_delta_groups [ calib_id ] = torch.tensor([0.0], requires_grad=True, device=cam_stack[0].device)
             self.focal_delta_groups [ calib_id ].grad = torch.tensor([0.0], device=cam_stack[0].device)
             self.kappa_delta_groups [ calib_id ].grad = torch.tensor([0.0], device=cam_stack[0].device)
+
+        self.current_calib_id = -1
+        for calib_id, cam_stack in self.calibration_groups.items():
+            num_views = len(cam_stack)
+            if calib_id > self.current_calib_id and num_views >= 2:
+                self.current_calib_id = calib_id
 
 
 
@@ -113,11 +121,64 @@ class CalibrationOptimizer:
 
 
 
+    # update cameras with calibration_identifier
+    def __update_focal_estimates (self, calibration_identifier = -1):
+        for calib_id, cam_stack in self.calibration_groups.items():
+            if calib_id == calibration_identifier:
+                focal_delta = self.focal_delta_groups [ calib_id ].data.cpu().numpy()[0]
+                for viewpoint_cam in cam_stack:
+                    focal = viewpoint_cam.fx
+                    viewpoint_cam.fx += focal_delta
+                    viewpoint_cam.fy += viewpoint_cam.aspect_ratio * focal_delta
+                focal_grad  = self.focal_delta_groups [ calib_id ].grad.cpu().numpy()[0]
+                # print(f"\n\tfocal_update = {focal_delta},\tgradient = {focal_grad}")
+                return focal, focal_grad
+
+
+
+    # update cameras' with calibration_identifier
+    def __update_kappa_estimates (self, calibration_identifier = -1):
+        for calib_id, cam_stack in self.calibration_groups.items():
+            if calib_id == calibration_identifier:
+                kappa_delta = self.kappa_delta_groups [ calib_id ].data.cpu().numpy()[0]
+                for viewpoint_cam in cam_stack:
+                    viewpoint_cam.kappa += kappa_delta
+                kappa_grad  = self.kappa_delta_groups [ calib_id ].grad.cpu().numpy()[0]
+                # print(f"\tkappa_update = {kappa_delta},\tgradient = {kappa_grad}")
+                return kappa_grad
+
+
+
+    # Newton step implementation for focal length optimization
+    # only availabe for the most recent calibration identifier, where:
+    # calibration_identifier = self.current_calib_id
+    def __newton_step_impl (self, calibration_identifier = -1):
+        # First perform a standard gradient descent, and then modify the update with newton step if necessary
+        self.focal_optimizer.step()
+
+        for calib_id, cam_stack in self.calibration_groups.items():
+
+            if calib_id == calibration_identifier:
+
+                focal_stack, focal_grad_stack = self.get_focal_statistics(calibration_identifier = calibration_identifier)
+                if focal_stack is None or len(focal_stack) == 0:
+                    return False
+
+                focal_grad  = self.focal_delta_groups [ calib_id ].grad.cpu().numpy()[0]
+                newton_update = LineDetection(focal_stack, focal_grad_stack).compute_newton_update(grad = focal_grad)
+
+                test_focal = cam_stack[0].fx + newton_update                
+
+                if (test_focal > self.FOCAL_LENGTH_RANGE[0] and test_focal < self.FOCAL_LENGTH_RANGE[1]):
+                    self.focal_delta_groups [ calib_id ].data.fill_(newton_update)  # use Newton update
+                    return True
+        
+        return False
+
+
+
     def focal_step(self, loss=None):
         self.__update_focal_gradients()
-
-        focal_grad_vec = []
-        focal_vec = []
 
         # L-BFGS closure
         def closure():
@@ -125,20 +186,11 @@ class CalibrationOptimizer:
 
         converged = False
 
-        newton_update_error = False
         # implement a Newton step by estimating Hessian from line fitting of History data (focals, focal_grads)
         if self.maximum_newton_steps > 0 and self.num_line_elements > 0 and len(self.focal_stack) and len(self.focal_stack) % self.num_line_elements == 0:
-            focal_stack, focal_grad_stack = self.get_focal_statistics()
-            for focals, focal_grads, (calib_id, cam_stack) in zip(focal_stack, focal_grad_stack, self.calibration_groups.items()):                                
-                focal_grad  = self.focal_delta_groups [ calib_id ].grad.cpu().numpy()[0]
-                newton_update = LineDetection(focals, focal_grads).compute_newton_update(grad = focal_grad)
-                test_focal = cam_stack[0].fx + newton_update
-                if (test_focal < self.FOCAL_LENGTH_RANGE[0] or test_focal > self.FOCAL_LENGTH_RANGE[1]):
-                    newton_update_error = True
-                    self.focal_optimizer.step()                    
-                else:
-                    self.focal_delta_groups [ calib_id ].data.fill_(newton_update)
-            if not newton_update_error:
+
+            newton_status = self.__newton_step_impl (self, calibration_identifier = self.current_calib_id)
+            if newton_status:
                 rich.print(f"\n[bold magenta]Newton update step[/bold magenta]")
                 self.maximum_newton_steps -= 1
                 self.update_gaussian_scale_t = True
@@ -156,42 +208,21 @@ class CalibrationOptimizer:
                 self.focal_optimizer.step()
 
 
-        for calib_id, cam_stack in self.calibration_groups.items():
-            focal_delta = self.focal_delta_groups [ calib_id ].data.cpu().numpy()[0]
-            for viewpoint_cam in cam_stack:
-                focal = viewpoint_cam.fx
-                viewpoint_cam.fx += focal_delta
-                viewpoint_cam.fy += viewpoint_cam.aspect_ratio * focal_delta
-            focal_grad  = self.focal_delta_groups [ calib_id ].grad.cpu().numpy()[0]
-            # print(f"\n\tfocal_update = {focal_delta},\tgradient = {focal_grad}")
-            
-            focal_grad_vec.append(focal_grad)
-            focal_vec.append(focal)
-
+        focal, focal_grad = self.__update_focal_estimates (self, calibration_identifier = self.current_calib_id)
+        
         if self.num_line_elements > 0:
-            self.focal_grad_stack.append(np.array(focal_grad_vec))
-            self.focal_stack.append(np.array(focal_vec))
+            self.focal_grad_stack.append(focal_grad)
+            self.focal_stack.append(focal)
 
-
-        # if np.linalg.norm( np.array(focal_grad_vec) ) < 0.00001:
-        #     self.update_focal_learning_rate(lr=0.001)
-        # if np.linalg.norm( np.array(focal_grad_vec) ) < 0.000001:
-        #     self.update_focal_learning_rate(lr=0.0001)
-        # if np.linalg.norm( np.array(focal_grad_vec) ) < 0.0000001:
-        #     self.update_focal_learning_rate(lr=0.00001)
-        converged = (np.linalg.norm( np.array(focal_grad_vec) ) < 0.0000001)
+        converged = ( np.abs(focal_grad) < 0.0000001)
         return converged
+
 
 
     def kappa_step(self):
         self.__update_kappa_gradients()
         self.kappa_optimizer.step()
-        for calib_id, cam_stack in self.calibration_groups.items():
-            kappa_delta = self.kappa_delta_groups [ calib_id ].data.cpu().numpy()[0]
-            for viewpoint_cam in cam_stack:
-                viewpoint_cam.kappa += kappa_delta
-            kappa_grad  = self.kappa_delta_groups [ calib_id ].grad.cpu().numpy()[0]
-            # print(f"\tkappa_update = {kappa_delta},\tgradient = {kappa_grad}")
+        self.__update_kappa_estimates (calibration_identifier = self.current_calib_id)
 
 
 
@@ -230,14 +261,18 @@ class CalibrationOptimizer:
 
 
 
-    def get_focal_statistics (self, all = False):
+    def get_focal_statistics (self, all = False, calibration_identifier = -1):
+        if calibration_identifier != self.current_calib_id:
+            return None, None
         if all:
-            focal_grad_stack  = np.array(self.focal_grad_stack).transpose()
-            focal_stack = np.array(self.focal_stack).transpose()
+            focal_grad_stack  = np.array(self.focal_grad_stack)
+            focal_stack = np.array(self.focal_stack)
         else:
-            focal_grad_stack  = np.array(self.focal_grad_stack[-self.num_line_elements:] ).transpose()
-            focal_stack = np.array(self.focal_stack[-self.num_line_elements:]).transpose()
+            focal_grad_stack  = np.array(self.focal_grad_stack[-self.num_line_elements:] )
+            focal_stack = np.array(self.focal_stack[-self.num_line_elements:])
         return focal_stack, focal_grad_stack
+
+
 
 
 
