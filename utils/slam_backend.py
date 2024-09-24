@@ -13,6 +13,7 @@ from utils.pose_utils import update_pose
 from utils.slam_utils import get_loss_mapping
 
 from optimizers import CalibrationOptimizer
+import numpy as np
 
 
 class BackEnd(mp.Process):
@@ -515,10 +516,13 @@ class BackEnd(mp.Process):
                     self.keyframe_optimizers.zero_grad()
 
                     if calibration_identifier_cnt >= 2:
-                        self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack, 500)
+                        H = viewpoint.image_height
+                        W = viewpoint.image_width
+                        focal_ref = np.sqrt(H*H + W*W)/2
+                        self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack, focal_ref)
                         self.calibration_optimizers.maximum_newton_steps = 0 # diable newton update
                         self.calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
-                        self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)
+                        self.calibration_optimizers.update_focal_learning_rate(lr = 0.001)
                         print(f"calibration optimizer. current_window [kf_idx]: {current_window}")
                         self.calibration_optimizers.zero_grad()
                     else:
