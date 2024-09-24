@@ -8,13 +8,14 @@ from gaussian_splatting.gaussian_renderer import render
 from gaussian_splatting.utils.graphics_utils import getProjectionMatrix2, getWorld2View2
 from gui import gui_utils
 from utils_cali.camera_cali_utils import CameraForCalibration as Camera
-from utils.eval_utils import eval_ate, save_gaussians
+from utils.eval_utils import save_gaussians
 from utils.logging_utils import Log
 from utils.multiprocessing_utils import clone_obj
 from utils.pose_utils import update_pose
 from utils.slam_utils import get_loss_tracking, get_median_depth
 
 from utils.slam_frontend import FrontEnd
+from utils_cali.eval_cali_utils import eval_ate
 
 
 class FrontEndCali(FrontEnd):
@@ -45,7 +46,7 @@ class FrontEndCali(FrontEnd):
                     if self.save_results:
                         eval_ate(
                             self.cameras,
-                            [i for i in range(0, self.dataset.n_img)], #when final frame is reached, evaluate the ATE of all frames
+                            [i for i in range(0, self.dataset.num_imgs)], #when final frame is reached, evaluate the ATE of all frames
                             self.save_dir,
                             0,
                             final=True,

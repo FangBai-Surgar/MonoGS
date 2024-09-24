@@ -14,13 +14,13 @@ from gaussian_splatting.scene.gaussian_model import GaussianModel
 from gaussian_splatting.utils.system_utils import mkdir_p
 from gui import gui_utils, slam_gui
 from utils.config_utils import load_config
-from utils.eval_utils import eval_ate, save_gaussians
+from utils.eval_utils import save_gaussians
 from utils.logging_utils import Log
 from utils.multiprocessing_utils import FakeQueue
 from utils.slam_backend import BackEnd
 from utils_cali.slam_cali_frontend import FrontEndCali as FrontEnd
 from utils_cali.dataset_cali import load_dataset
-from utils_cali.eval_cali_utils import eval_rendering
+from utils_cali.eval_cali_utils import eval_ate, eval_rendering
 
 
 from typing import NamedTuple
@@ -150,7 +150,7 @@ class SLAM:
 
             ATE = eval_ate(
                 self.frontend.cameras,
-                kf_indices,
+                [i for i in range(0, N_frames)],
                 self.save_dir,
                 0,
                 final=True,
@@ -256,7 +256,7 @@ if __name__ == "__main__":
     calib_opts = OnlineCalibrationSettings()
     # adjust controlo params
     calib_opts.require_calibration = args.require_calibration
-    calib_opts.allow_lens_distortion = args.allow_lens_distortion
+    calib_opts.allow_lens_distortion = args.allow_lens_distortion and args.require_calibration
     print(f"calib_opts.require_calibration: {calib_opts.require_calibration}")
     print(f"calib_opts.allow_lens_distortion: {calib_opts.allow_lens_distortion}")
 

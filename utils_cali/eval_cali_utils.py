@@ -23,6 +23,115 @@ from utils.logging_utils import Log
 
 import copy
 
+def evaluate_evo(poses_gt, poses_est, plot_dir, label, monocular=False):
+    ## Plot
+    traj_ref = PosePath3D(poses_se3=poses_gt)
+    traj_est = PosePath3D(poses_se3=poses_est)
+    # traj_est_aligned = copy.deepcopy(traj_est)
+    # traj_est_aligned.align(traj_ref, correct_scale=monocular)
+    # below old method does not work anymore
+    traj_est_aligned = trajectory.align_trajectory(
+        traj_est, traj_ref, correct_scale=monocular
+    )
+
+    ## RMSE
+    pose_relation = metrics.PoseRelation.translation_part
+    data = (traj_ref, traj_est_aligned)
+    ape_metric = metrics.APE(pose_relation)
+    ape_metric.process_data(data)
+    ape_stat = ape_metric.get_statistic(metrics.StatisticsType.rmse)
+    ape_stats = ape_metric.get_all_statistics()
+    Log("RMSE ATE \[m]", ape_stat, tag="Eval")
+
+    with open(
+        os.path.join(plot_dir, "stats_{}.json".format(str(label))),
+        "w",
+        encoding="utf-8",
+    ) as f:
+        json.dump(ape_stats, f, indent=4)
+
+    plot_mode = evo.tools.plot.PlotMode.xy
+    fig = plt.figure()
+    ax = evo.tools.plot.prepare_axis(fig, plot_mode)
+    ax.set_title(f"ATE RMSE: {ape_stat}")
+    evo.tools.plot.traj(ax, plot_mode, traj_ref, "--", "gray", "gt")
+    evo.tools.plot.traj_colormap(
+        ax,
+        traj_est_aligned,
+        ape_metric.error,
+        plot_mode,
+        min_map=ape_stats["min"],
+        max_map=ape_stats["max"],
+    )
+    ax.legend()
+    plt.savefig(os.path.join(plot_dir, "evo_2dplot_{}.png".format(str(label))), dpi=90)
+
+    return ape_stat
+
+
+def eval_ate(frames, kf_ids, save_dir, iterations, final=False, monocular=False):
+    trj_data = dict()
+    latest_frame_idx = kf_ids[-1] + 2 if final else kf_ids[-1] + 1
+    trj_id, trj_est, trj_gt = [], [], []
+    trj_est_np, trj_gt_np = [], []
+    print(f"final: {final}")
+    print(f"Final ATE evaluation for keyframes: {kf_ids}")
+
+    def gen_pose_matrix(R, T):
+        pose = np.eye(4)
+        pose[0:3, 0:3] = R.cpu().numpy()
+        pose[0:3, 3] = T.cpu().numpy()
+        return pose
+
+    for kf_id in kf_ids:
+        kf = frames[kf_id]
+        pose_est = np.linalg.inv(gen_pose_matrix(kf.R, kf.T))
+        pose_gt = np.linalg.inv(gen_pose_matrix(kf.R_gt, kf.T_gt))
+
+        trj_id.append(frames[kf_id].uid)
+        trj_est.append(pose_est.tolist())
+        trj_gt.append(pose_gt.tolist())
+
+        trj_est_np.append(pose_est)
+        trj_gt_np.append(pose_gt)
+
+    trj_data["trj_id"] = trj_id
+    trj_data["trj_est"] = trj_est
+    trj_data["trj_gt"] = trj_gt
+
+    plot_dir = os.path.join(save_dir, "plot")
+    mkdir_p(plot_dir)
+
+    label_evo = "final" if final else "{:04}".format(iterations)
+    with open(
+        os.path.join(plot_dir, f"trj_{label_evo}.json"), "w", encoding="utf-8"
+    ) as f:
+        json.dump(trj_data, f, indent=4)
+
+    ate = evaluate_evo(
+        poses_gt=trj_gt_np,
+        poses_est=trj_est_np,
+        plot_dir=plot_dir,
+        label=label_evo,
+        monocular=monocular,
+    )
+    wandb.log({"frame_idx": latest_frame_idx, "ate": ate})
+    return ate
+
+def read_traj_final_json_file(filename):
+    try:
+        # Open the file for reading
+        with open(filename, 'r', encoding='utf-8') as file:
+            # Load the JSON data from the file
+            data = json.load(file)
+        return [data["trj_id"], data["trj_est"], data["trj_gt"]]
+    except FileNotFoundError:
+        print("The file was not found.")
+    except json.JSONDecodeError:
+        print("Error decoding JSON from the file.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
 def eval_rendering(
     frames,
     gaussians,
