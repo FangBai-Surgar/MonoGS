@@ -318,14 +318,16 @@ class BackEnd(mp.Process):
 
                 # Calibration update. only do calibration if slam has been initialized.
                 # Here we assume a good focal initialization has been attained in frontend PnP module, by fixing 3D Gaussians and poses and then optimizing focal only
-                if self.calibration_optimizers is not None:
+                if (self.calibration_optimizers is not None) and (not prune) and (not gaussian_split):
                     if self.require_calibration and self.initialized:
                         self.calibration_optimizers.focal_step()
-                        if self.allow_lens_distortion and cur_itr >= frozen_states:
+                        if cur_itr < frozen_states:
+                            self.calibration_optimizers.zero_grad()
+                            continue
+                        if self.allow_lens_distortion:
                             self.calibration_optimizers.kappa_step()
                     self.calibration_optimizers.zero_grad()
-                    if cur_itr < frozen_states:
-                        continue
+
 
                 # Pose update
                 self.keyframe_optimizers.step()
@@ -521,7 +523,7 @@ class BackEnd(mp.Process):
                     self.map(self.current_window, iters=iter_per_kf)
                     self.map(self.current_window, prune=True)
                     self.push_to_frontend("keyframe")
-                    print(f"backend optimized keyframe {cur_frame_idx}: fx = {self.viewpoints[cur_frame_idx].fx:.3f}, fy = {self.viewpoints[cur_frame_idx].fy:.3f}, kappa = {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id = {self.viewpoints[cur_frame_idx].calibration_identifier}")
+                    print(f"backend optimized keyframe {cur_frame_idx}: fx = {self.viewpoints[cur_frame_idx].fx:.3f}, fy = {self.viewpoints[cur_frame_idx].fy:.3f}, kappa = {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id = {self.viewpoints[cur_frame_idx].calibration_identifier}, iter_per_kf = {iter_per_kf}")
                     # update all cameras with the same calibration_identifier
                     if self.calibration_optimizers is not None:
                         fx = self.viewpoints[cur_frame_idx].fx
