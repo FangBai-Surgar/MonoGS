@@ -176,6 +176,9 @@ class BackEnd(mp.Process):
             radii_acm = []
             n_touched_acm = []
 
+            if self.calibration_optimizers is not None:
+                self.calibration_optimizers.zero_grad()
+
             keyframes_opt = []
 
             for cam_idx in range(len(current_window)):
@@ -319,17 +322,15 @@ class BackEnd(mp.Process):
 
                 # Calibration update. only do calibration if slam has been initialized.
                 # Here we assume a good focal initialization has been attained in frontend PnP module, by fixing 3D Gaussians and poses and then optimizing focal only
-                if (self.calibration_optimizers is not None) and (not prune) and (not gaussian_split) and iters > 1:
-                    if self.require_calibration and self.initialized:
-                        lr = lr_exp_decay_helper(step=cur_itr, lr_init=0.01, lr_final=1e-5, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=iters)
+                if self.require_calibration and self.initialized:
+                    if (self.calibration_optimizers is not None) and (not prune) and (not gaussian_split) and iters != 1:
+                        lr = lr_exp_decay_helper(step=cur_itr, lr_init=0.1, lr_final=1e-4, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=iters)
                         self.calibration_optimizers.update_focal_learning_rate(lr = lr, scale = None)
                         self.calibration_optimizers.focal_step()
                         if cur_itr < frozen_states:
-                            self.calibration_optimizers.zero_grad()
                             continue
                         if self.allow_lens_distortion and cur_itr > 5:
                             self.calibration_optimizers.kappa_step()
-                    self.calibration_optimizers.zero_grad()
 
 
                 # Pose update
