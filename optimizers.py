@@ -72,7 +72,7 @@ class CalibrationOptimizer:
         self.current_calib_id = -1
         for calib_id, cam_stack in self.calibration_groups.items():
             num_views = len(cam_stack)
-            if calib_id > self.current_calib_id and num_views >= 2:
+            if calib_id > self.current_calib_id and num_views >= 1:
                 self.current_calib_id = calib_id
         print(f"self.current_calib_id = {self.current_calib_id}")
 
