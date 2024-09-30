@@ -96,8 +96,8 @@ class CalibrationOptimizer:
                         "name": "calibration_k_{}".format(calib_id),
                     }
                 )
-        self.focal_optimizer = torch.optim.Adam(focal_opt_params)
-        self.kappa_optimizer = torch.optim.Adam(kappa_opt_params)
+        self.focal_optimizer = torch.optim.SGD(focal_opt_params)
+        self.kappa_optimizer = torch.optim.SGD(kappa_opt_params)
         
         
 
@@ -113,7 +113,9 @@ class CalibrationOptimizer:
             for viewpoint_cam in cam_stack:
                 self.focal_delta_groups [ calib_id ].grad += viewpoint_cam.cam_focal_delta.grad
             
-            self.focal_delta_groups [ calib_id ].grad *= self.focal_gradient_normalizer  # normalized_focal_grad = real_focal_grad * normalizer 
+            # focal_gradient_normalizer: is a guessed working focal length
+            # also normalize the gradient as per camera, to help with finding stable tuning parameters, as updates is implemented per camera
+            self.focal_delta_groups [ calib_id ].grad *= self.focal_gradient_normalizer / len(cam_stack)  # normalized_focal_grad = real_focal_grad * normalizer 
 
 
 
@@ -126,6 +128,8 @@ class CalibrationOptimizer:
 
             for viewpoint_cam in cam_stack:
                 self.kappa_delta_groups [ calib_id ].grad += viewpoint_cam.cam_kappa_delta.grad
+            # also normalize the gradient as per camera, to help with finding stable tuning parameters, as updates is implemented per camera
+            self.kappa_delta_groups [ calib_id ].grad *=  ( 1.0 / len(cam_stack) )
 
 
 
@@ -133,15 +137,15 @@ class CalibrationOptimizer:
     def __update_focal_estimates (self, calibration_identifier):
         for calib_id, cam_stack in self.calibration_groups.items():
             if calib_id == calibration_identifier:
-                focal_delta = self.focal_delta_groups [ calib_id ].data.cpu().numpy()[0]
-                focal_delta *= self.focal_gradient_normalizer  # real_focal = normalized_focal * normalizer
+                focal_delta_normalized = self.focal_delta_groups [ calib_id ].data.cpu().numpy()[0]
+                focal_delta = focal_delta_normalized * self.focal_gradient_normalizer  # real_focal = normalized_focal * normalizer
+                focal_grad_normalized  = self.focal_delta_groups [ calib_id ].grad.cpu().numpy()[0]
+                print(f"\tfocal_update = {focal_delta:.4f},\tupdate_normalized = {focal_delta_normalized:.7f},\tgradient_normalized = {focal_grad_normalized:.7f}")
                 for viewpoint_cam in cam_stack:
                     focal = viewpoint_cam.fx
                     viewpoint_cam.fx += focal_delta
                     viewpoint_cam.fy += viewpoint_cam.aspect_ratio * focal_delta
-                focal_grad  = self.focal_delta_groups [ calib_id ].grad.cpu().numpy()[0]
-                print(f"\tfocal_update = {focal_delta},\tgradient_normalized = {focal_grad}")
-                return focal/self.focal_gradient_normalizer, focal_grad
+                return focal/self.focal_gradient_normalizer, focal_grad_normalized
 
 
 
@@ -150,10 +154,10 @@ class CalibrationOptimizer:
         for calib_id, cam_stack in self.calibration_groups.items():
             if calib_id == calibration_identifier:
                 kappa_delta = self.kappa_delta_groups [ calib_id ].data.cpu().numpy()[0]
+                kappa_grad  = self.kappa_delta_groups [ calib_id ].grad.cpu().numpy()[0]
+                # print(f"\tkappa_update = {kappa_delta:.4f},\tgradient = {kappa_grad:.7f}")
                 for viewpoint_cam in cam_stack:
                     viewpoint_cam.kappa += kappa_delta
-                kappa_grad  = self.kappa_delta_groups [ calib_id ].grad.cpu().numpy()[0]
-                # print(f"\tkappa_update = {kappa_delta},\tgradient = {kappa_grad}")
                 return kappa_grad
 
 
