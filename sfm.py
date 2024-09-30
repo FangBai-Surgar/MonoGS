@@ -205,7 +205,7 @@ class SFM(mp.Process):
 
             if iteration >= self.start_calib_iter:
                 step = iteration - self.start_calib_iter
-                lr = lr_exp_decay_helper(step, lr_init=0.1, lr_final=1e-5, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=50)
+                lr = lr_exp_decay_helper(step, lr_init=0.1, lr_final=1e-3, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=30)
                 self.calibration_optimizer.update_focal_learning_rate (lr = lr, scale = None)
     
 

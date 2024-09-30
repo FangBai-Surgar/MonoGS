@@ -96,8 +96,8 @@ class CalibrationOptimizer:
                         "name": "calibration_k_{}".format(calib_id),
                     }
                 )
-        self.focal_optimizer = torch.optim.SGD(focal_opt_params)
-        self.kappa_optimizer = torch.optim.SGD(kappa_opt_params)
+        self.focal_optimizer = torch.optim.Adam(focal_opt_params)
+        self.kappa_optimizer = torch.optim.Adam(kappa_opt_params)
         
         
 
@@ -108,14 +108,14 @@ class CalibrationOptimizer:
         for calib_id, cam_stack in self.calibration_groups.items():
 
             self.focal_delta_groups [ calib_id ].data.fill_(0)
-            self.focal_delta_groups [ calib_id ].grad.zero_()
+            self.focal_delta_groups [ calib_id ].grad.fill_(0)
 
             for viewpoint_cam in cam_stack:
                 self.focal_delta_groups [ calib_id ].grad += viewpoint_cam.cam_focal_delta.grad
             
             # focal_gradient_normalizer: is a guessed working focal length
             # also normalize the gradient as per camera, to help with finding stable tuning parameters, as updates is implemented per camera
-            self.focal_delta_groups [ calib_id ].grad *= self.focal_gradient_normalizer / len(cam_stack)  # normalized_focal_grad = real_focal_grad * normalizer 
+            self.focal_delta_groups [ calib_id ].grad *= self.focal_gradient_normalizer #/ len(cam_stack)  # normalized_focal_grad = real_focal_grad * normalizer 
 
 
 
@@ -124,12 +124,12 @@ class CalibrationOptimizer:
         for calib_id, cam_stack in self.calibration_groups.items():
 
             self.kappa_delta_groups [ calib_id ].data.fill_(0)
-            self.kappa_delta_groups [ calib_id ].grad.zero_()
+            self.kappa_delta_groups [ calib_id ].grad.fill_(0)
 
             for viewpoint_cam in cam_stack:
                 self.kappa_delta_groups [ calib_id ].grad += viewpoint_cam.cam_kappa_delta.grad
             # also normalize the gradient as per camera, to help with finding stable tuning parameters, as updates is implemented per camera
-            self.kappa_delta_groups [ calib_id ].grad *=  ( 1.0 / len(cam_stack) )
+            # self.kappa_delta_groups [ calib_id ].grad *=  ( 1.0 / len(cam_stack) )
 
 
 
@@ -240,15 +240,17 @@ class CalibrationOptimizer:
 
 
     def zero_grad(self):
+        self.focal_optimizer.zero_grad(set_to_none=False)
+        self.kappa_optimizer.zero_grad(set_to_none=False)
         for viewpoint_cam in self.viewpoint_stack:
             viewpoint_cam.cam_focal_delta.data.fill_(0)
             viewpoint_cam.cam_kappa_delta.data.fill_(0)
             if viewpoint_cam.cam_focal_delta.grad is not None:
-                viewpoint_cam.cam_focal_delta.grad.detach_()
-                viewpoint_cam.cam_focal_delta.grad.zero_()
+                # viewpoint_cam.cam_focal_delta.grad.detach_()
+                viewpoint_cam.cam_focal_delta.grad.fill_(0)
             if viewpoint_cam.cam_kappa_delta.grad is not None:
-                viewpoint_cam.cam_kappa_delta.grad.detach_()
-                viewpoint_cam.cam_kappa_delta.grad.zero_()
+                # viewpoint_cam.cam_kappa_delta.grad.detach_()
+                viewpoint_cam.cam_kappa_delta.grad.fill_(0)
 
 
 

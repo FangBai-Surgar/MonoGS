@@ -154,8 +154,6 @@ class BackEnd(mp.Process):
             return
 
 
-        frozen_states = 0  if self.calibration_optimizers is not None else -1
-
         viewpoint_stack = [self.viewpoints[kf_idx] for kf_idx in current_window]
         random_viewpoint_stack = []
         frames_to_optimize = self.config["Training"]["pose_window"]
@@ -175,9 +173,6 @@ class BackEnd(mp.Process):
             visibility_filter_acm = []
             radii_acm = []
             n_touched_acm = []
-
-            if self.calibration_optimizers is not None:
-                self.calibration_optimizers.zero_grad()
 
             keyframes_opt = []
 
@@ -327,10 +322,10 @@ class BackEnd(mp.Process):
                         lr = lr_exp_decay_helper(step=cur_itr, lr_init=0.1, lr_final=1e-4, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=iters)
                         self.calibration_optimizers.update_focal_learning_rate(lr = lr, scale = None)
                         self.calibration_optimizers.focal_step()
-                        if cur_itr < frozen_states:
-                            continue
                         if self.allow_lens_distortion and cur_itr > 5:
                             self.calibration_optimizers.kappa_step()
+                if self.calibration_optimizers is not None:
+                    self.calibration_optimizers.zero_grad()
 
 
                 # Pose update
