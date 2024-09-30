@@ -49,7 +49,7 @@ from utils.multiprocessing_utils import FakeQueue, clone_obj
 from depth_anything import DepthAnything
 
 
-from optimizers import CalibrationOptimizer, PoseOptimizer, LineDetection
+from optimizers import CalibrationOptimizer, PoseOptimizer, LineDetection, lr_exp_decay_helper
 
 from gaussian_scale_space import image_conv_gaussian_separable
 
@@ -196,8 +196,6 @@ class SFM(mp.Process):
                     viewpoint_cam.fy = viewpoint_cam.aspect_ratio * focal
                     viewpoint_cam.kappa = 0.0
 
-                self.calibration_optimizer.update_focal_learning_rate(lr = 0.1)  # start from a large leraning rate as we modify focal abruptly.
-
                 if self.use_gui:
                     cam_cnt = (cam_cnt+1) % len(self.viewpoint_stack)
                     self.push_to_gui(cam_cnt)
@@ -205,9 +203,10 @@ class SFM(mp.Process):
 
 
 
-            if iteration > self.start_calib_iter and (iteration - self.start_calib_iter) % 20 == 0:
-                self.calibration_optimizer.update_kappa_learning_rate(lr = None, scale = 0.1)
-                self.calibration_optimizer.update_focal_learning_rate(lr = None, scale = 0.1)
+            if iteration >= self.start_calib_iter:
+                step = iteration - self.start_calib_iter
+                lr = lr_exp_decay_helper(step, lr_init=0.1, lr_final=1e-5, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=50)
+                self.calibration_optimizer.update_focal_learning_rate (lr = lr, scale = None)
     
 
             self.gaussians.update_learning_rate(iteration)

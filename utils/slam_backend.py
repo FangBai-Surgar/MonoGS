@@ -12,7 +12,7 @@ from utils.multiprocessing_utils import clone_obj
 from utils.pose_utils import update_pose
 from utils.slam_utils import get_loss_mapping
 
-from optimizers import CalibrationOptimizer
+from optimizers import CalibrationOptimizer, lr_exp_decay_helper
 import numpy as np
 
 
@@ -320,15 +320,14 @@ class BackEnd(mp.Process):
                 # Calibration update. only do calibration if slam has been initialized.
                 # Here we assume a good focal initialization has been attained in frontend PnP module, by fixing 3D Gaussians and poses and then optimizing focal only
                 if (self.calibration_optimizers is not None) and (not prune) and (not gaussian_split):
-                    if cur_itr == 5:
-                        self.calibration_optimizers.update_focal_learning_rate(lr = None, scale = 0.1)
-
                     if self.require_calibration and self.initialized:
+                        lr = lr_exp_decay_helper(step=cur_itr, lr_init=0.01, lr_final=1e-5, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=iters)
+                        self.calibration_optimizers.update_focal_learning_rate(lr = lr, scale = None)
                         self.calibration_optimizers.focal_step()
                         if cur_itr < frozen_states:
                             self.calibration_optimizers.zero_grad()
                             continue
-                        if self.allow_lens_distortion:
+                        if self.allow_lens_distortion and cur_itr > 5:
                             self.calibration_optimizers.kappa_step()
                     self.calibration_optimizers.zero_grad()
 
@@ -515,14 +514,14 @@ class BackEnd(mp.Process):
                     self.keyframe_optimizers = torch.optim.Adam(pose_opt_params)
                     self.keyframe_optimizers.zero_grad()
 
-                    if calibration_identifier_cnt >= 2:
+                    if self.require_calibration and self.initialized and calibration_identifier_cnt >= 2:
                         H = viewpoint.image_height
                         W = viewpoint.image_width
                         focal_ref = np.sqrt(H*H + W*W)/2
                         self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack, focal_ref)
                         self.calibration_optimizers.maximum_newton_steps = 0 # diable newton update
                         self.calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
-                        self.calibration_optimizers.update_focal_learning_rate(lr = 0.001)
+                        # self.calibration_optimizers.update_focal_learning_rate(lr = 0.001)
                         print(f"calibration optimizer. current_window [kf_idx]: {current_window}")
                         self.calibration_optimizers.zero_grad()
                     else:

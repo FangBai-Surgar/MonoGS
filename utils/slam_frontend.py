@@ -14,7 +14,7 @@ from utils.multiprocessing_utils import clone_obj
 from utils.pose_utils import update_pose
 from utils.slam_utils import get_loss_tracking, get_median_depth
 
-from optimizers import CalibrationOptimizer, PoseOptimizer
+from optimizers import CalibrationOptimizer, PoseOptimizer, lr_exp_decay_helper
 
 from gaussian_scale_space import image_conv_gaussian_separable
 
@@ -415,7 +415,7 @@ class FrontEnd(mp.Process):
 
                 # focal tracking
                 if self.require_calibration and self.initialized and signal_calibration_change:
-                    self.focal_tracking (cur_frame_idx, viewpoint, gaussian_scale_t = 1.0, max_iter_num = 100)
+                    self.focal_tracking (cur_frame_idx, viewpoint, gaussian_scale_t = 1.0, max_iter_num = 20)
 
                 # pose tracking
                 render_pkg = self.tracking(cur_frame_idx, viewpoint)
@@ -541,13 +541,16 @@ class FrontEnd(mp.Process):
         calibration_optimizers = CalibrationOptimizer(viewpoint_stack, focal_ref) # only one view
         calibration_optimizers.maximum_newton_steps = 0 # diable newton update
         calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
-        calibration_optimizers.update_focal_learning_rate(lr = 0.01)
+        # calibration_optimizers.update_focal_learning_rate(lr = 0.01)
 
         pose_optimizer = PoseOptimizer(viewpoint_stack)
 
         rgb_boundary_threshold = 0.01
 
         for itr in range(max_iter_num):
+
+            lr = lr_exp_decay_helper(step=itr, lr_init=0.1, lr_final=1e-6, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=max_iter_num)
+            calibration_optimizers.update_focal_learning_rate(lr = lr, scale = None)
 
             calibration_optimizers.zero_grad()
             pose_optimizer.zero_grad()

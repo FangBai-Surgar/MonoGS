@@ -96,8 +96,8 @@ class CalibrationOptimizer:
                         "name": "calibration_k_{}".format(calib_id),
                     }
                 )
-        self.focal_optimizer = torch.optim.NAdam(focal_opt_params)
-        self.kappa_optimizer = torch.optim.NAdam(kappa_opt_params)
+        self.focal_optimizer = torch.optim.Adam(focal_opt_params)
+        self.kappa_optimizer = torch.optim.Adam(kappa_opt_params)
         
         
 
@@ -444,7 +444,7 @@ class LineDetection:
 
 
 
-def lr_helper(
+def lr_exp_decay_helper(
     step, lr_init, lr_final, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=1000000
 ):
     """
