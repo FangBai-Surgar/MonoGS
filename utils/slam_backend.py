@@ -152,7 +152,7 @@ class BackEnd(mp.Process):
     def map(self, current_window, prune=False, iters=1):
         if len(current_window) == 0:
             return
-
+        print(f"slam_backend::map() current_window={current_window}, prune={prune}, iters={iters}")
 
         viewpoint_stack = [self.viewpoints[kf_idx] for kf_idx in current_window]
         random_viewpoint_stack = []
@@ -319,13 +319,18 @@ class BackEnd(mp.Process):
                 # Here we assume a good focal initialization has been attained in frontend PnP module, by fixing 3D Gaussians and poses and then optimizing focal only
                 if self.require_calibration and self.initialized:
                     if (self.calibration_optimizers is not None) and (not prune) and (not gaussian_split) and iters != 1:
-                        lr = lr_exp_decay_helper(step=cur_itr, lr_init=0.1, lr_final=1e-4, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=iters)
-                        self.calibration_optimizers.update_focal_learning_rate(lr = lr, scale = None)
+                        if iters >= 30:
+                            lr = lr_exp_decay_helper(step=cur_itr, lr_init=0.01, lr_final=1e-4, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=iters)
+                            self.calibration_optimizers.update_focal_learning_rate(lr = lr, scale = None)
                         self.calibration_optimizers.focal_step()
                         if self.allow_lens_distortion and cur_itr > 5:
                             self.calibration_optimizers.kappa_step()
                 if self.calibration_optimizers is not None:
-                    self.calibration_optimizers.zero_grad()
+                    self.calibration_optimizers.zero_grad(set_to_none=True)
+                    # In the 1st iteration of Adam, always the update = lr, irregardless of the gradient magnitude. Here 0.01 means 1% of focal chagne.
+                    # don't update pose and 3D gaussian in this "warming up" stage.
+                    if cur_itr < 3:
+                        continue
 
 
                 # Pose update
@@ -517,7 +522,7 @@ class BackEnd(mp.Process):
                         self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack, focal_ref)
                         self.calibration_optimizers.maximum_newton_steps = 0 # diable newton update
                         self.calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
-                        # self.calibration_optimizers.update_focal_learning_rate(lr = 0.001)
+                        self.calibration_optimizers.update_focal_learning_rate(lr = 0.005)
                         print(f"calibration optimizer. current_window [kf_idx]: {current_window}")
                         self.calibration_optimizers.zero_grad()
                     else:

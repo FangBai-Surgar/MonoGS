@@ -36,9 +36,8 @@ class CalibrationOptimizer:
         self.current_calib_id = -1
 
         self.__init_calibration_groups()
+        self.__init_current_calibration_id()
         self.__init_optimizers()
-        self.zero_grad()
-
 
         self.focal_grad_stack = []
         self.focal_stack = []
@@ -64,16 +63,22 @@ class CalibrationOptimizer:
                 self.calibration_groups[ calib_id ] = []
             self.calibration_groups[ calib_id ].append(viewpoint_cam)
         for calib_id, cam_stack in self.calibration_groups.items():
-            self.focal_delta_groups [ calib_id ] = torch.tensor([0.0], requires_grad=True, device=cam_stack[0].device)
-            self.kappa_delta_groups [ calib_id ] = torch.tensor([0.0], requires_grad=True, device=cam_stack[0].device)
-            self.focal_delta_groups [ calib_id ].grad = torch.tensor([0.0], device=cam_stack[0].device)
-            self.kappa_delta_groups [ calib_id ].grad = torch.tensor([0.0], device=cam_stack[0].device)
+            # gradients to these variables will be computed manually, thus requires_grad = False
+            self.focal_delta_groups [ calib_id ] = torch.tensor([0.0], requires_grad=False, device=cam_stack[0].device)
+            self.kappa_delta_groups [ calib_id ] = torch.tensor([0.0], requires_grad=False, device=cam_stack[0].device)
+            # self.focal_delta_groups [ calib_id ].grad = torch.tensor([0.0], device=cam_stack[0].device)
+            # self.kappa_delta_groups [ calib_id ].grad = torch.tensor([0.0], device=cam_stack[0].device)
 
-        self.current_calib_id = -1
-        for calib_id, cam_stack in self.calibration_groups.items():
-            num_views = len(cam_stack)
-            if calib_id > self.current_calib_id and num_views >= 1:
-                self.current_calib_id = calib_id
+
+    def __init_current_calibration_id(self, current_calib_id = None):
+        if current_calib_id is not None:
+            self.current_calib_id = current_calib_id
+        else:
+            self.current_calib_id = -1
+            for calib_id, cam_stack in self.calibration_groups.items():
+                num_views = len(cam_stack)
+                if calib_id > self.current_calib_id and num_views >= 1:
+                    self.current_calib_id = calib_id
         print(f"self.current_calib_id = {self.current_calib_id}")
 
 
@@ -97,7 +102,7 @@ class CalibrationOptimizer:
                     }
                 )
         self.focal_optimizer = torch.optim.Adam(focal_opt_params)
-        self.kappa_optimizer = torch.optim.Adam(kappa_opt_params)
+        self.kappa_optimizer = torch.optim.SGD(kappa_opt_params)
         
         
 
@@ -106,9 +111,11 @@ class CalibrationOptimizer:
     # put it under .grad? to be used with optimizers
     def __update_focal_gradients (self):
         for calib_id, cam_stack in self.calibration_groups.items():
-
             self.focal_delta_groups [ calib_id ].data.fill_(0)
-            self.focal_delta_groups [ calib_id ].grad.fill_(0)
+            if self.focal_delta_groups [ calib_id ].grad is None:
+                self.focal_delta_groups [ calib_id ].grad = torch.tensor([0.0], device=cam_stack[0].device)
+            else:
+                self.focal_delta_groups [ calib_id ].grad.fill_(0)
 
             for viewpoint_cam in cam_stack:
                 self.focal_delta_groups [ calib_id ].grad += viewpoint_cam.cam_focal_delta.grad
@@ -122,9 +129,11 @@ class CalibrationOptimizer:
     # put it under .grad? to be used with optimizers
     def __update_kappa_gradients (self):
         for calib_id, cam_stack in self.calibration_groups.items():
-
             self.kappa_delta_groups [ calib_id ].data.fill_(0)
-            self.kappa_delta_groups [ calib_id ].grad.fill_(0)
+            if self.kappa_delta_groups [ calib_id ].grad is None:
+                self.kappa_delta_groups [ calib_id ].grad = torch.tensor([0.0], device=cam_stack[0].device)
+            else:
+                self.kappa_delta_groups [ calib_id ].grad.fill_(0)
 
             for viewpoint_cam in cam_stack:
                 self.kappa_delta_groups [ calib_id ].grad += viewpoint_cam.cam_kappa_delta.grad
@@ -140,7 +149,7 @@ class CalibrationOptimizer:
                 focal_delta_normalized = self.focal_delta_groups [ calib_id ].data.cpu().numpy()[0]
                 focal_delta = focal_delta_normalized * self.focal_gradient_normalizer  # real_focal = normalized_focal * normalizer
                 focal_grad_normalized  = self.focal_delta_groups [ calib_id ].grad.cpu().numpy()[0]
-                print(f"\tfocal_update = {focal_delta:.4f},\tupdate_normalized = {focal_delta_normalized:.7f},\tgradient_normalized = {focal_grad_normalized:.7f}")
+                print(f">>focal_update={focal_delta:.4f},\tupdate_normalized={focal_delta_normalized:.7f},\tgradient_normalized={focal_grad_normalized:.7f}")
                 for viewpoint_cam in cam_stack:
                     focal = viewpoint_cam.fx
                     viewpoint_cam.fx += focal_delta
@@ -155,7 +164,7 @@ class CalibrationOptimizer:
             if calib_id == calibration_identifier:
                 kappa_delta = self.kappa_delta_groups [ calib_id ].data.cpu().numpy()[0]
                 kappa_grad  = self.kappa_delta_groups [ calib_id ].grad.cpu().numpy()[0]
-                # print(f"\tkappa_update = {kappa_delta:.4f},\tgradient = {kappa_grad:.7f}")
+                # print(f">>kappa_update={kappa_delta:.4f},\tgradient={kappa_grad:.7f}")
                 for viewpoint_cam in cam_stack:
                     viewpoint_cam.kappa += kappa_delta
                 return kappa_grad
@@ -239,9 +248,9 @@ class CalibrationOptimizer:
 
 
 
-    def zero_grad(self):
-        self.focal_optimizer.zero_grad(set_to_none=False)
-        self.kappa_optimizer.zero_grad(set_to_none=False)
+    def zero_grad(self, set_to_none=True):
+        self.focal_optimizer.zero_grad(set_to_none=set_to_none)
+        self.kappa_optimizer.zero_grad(set_to_none=set_to_none)
         for viewpoint_cam in self.viewpoint_stack:
             viewpoint_cam.cam_focal_delta.data.fill_(0)
             viewpoint_cam.cam_kappa_delta.data.fill_(0)
