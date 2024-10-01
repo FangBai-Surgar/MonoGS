@@ -97,12 +97,12 @@ class CalibrationOptimizer:
             kappa_opt_params.append(
                     {
                         "params": [ self.kappa_delta_groups [ calib_id ] ],
-                        "lr": 0.001,
+                        "lr": 0.0001,
                         "name": "calibration_k_{}".format(calib_id),
                     }
                 )
         self.focal_optimizer = torch.optim.Adam(focal_opt_params)
-        self.kappa_optimizer = torch.optim.SGD(kappa_opt_params)
+        self.kappa_optimizer = torch.optim.Adam(kappa_opt_params)
         
         
 
@@ -149,11 +149,11 @@ class CalibrationOptimizer:
                 focal_delta_normalized = self.focal_delta_groups [ calib_id ].data.cpu().numpy()[0]
                 focal_delta = focal_delta_normalized * self.focal_gradient_normalizer  # real_focal = normalized_focal * normalizer
                 focal_grad_normalized  = self.focal_delta_groups [ calib_id ].grad.cpu().numpy()[0]
-                print(f">>focal_update={focal_delta:.4f},\tupdate_normalized={focal_delta_normalized:.7f},\tgradient_normalized={focal_grad_normalized:.7f}")
                 for viewpoint_cam in cam_stack:
                     focal = viewpoint_cam.fx
                     viewpoint_cam.fx += focal_delta
                     viewpoint_cam.fy += viewpoint_cam.aspect_ratio * focal_delta
+                print(f">>opt_focal = {focal:.4f}, update={focal_delta:.4f}, update_normalized={focal_delta_normalized:.7f}, gradient_normalized={focal_grad_normalized:.7f}")
                 return focal/self.focal_gradient_normalizer, focal_grad_normalized
 
 
@@ -164,7 +164,7 @@ class CalibrationOptimizer:
             if calib_id == calibration_identifier:
                 kappa_delta = self.kappa_delta_groups [ calib_id ].data.cpu().numpy()[0]
                 kappa_grad  = self.kappa_delta_groups [ calib_id ].grad.cpu().numpy()[0]
-                # print(f">>kappa_update={kappa_delta:.4f},\tgradient={kappa_grad:.7f}")
+                # print(f">>opt_kappa={kappa:.6f}, update={kappa_delta:.6f}, gradient={kappa_grad:.7f}")
                 for viewpoint_cam in cam_stack:
                     viewpoint_cam.kappa += kappa_delta
                 return kappa_grad
@@ -342,8 +342,8 @@ class PoseOptimizer:
 
 
 
-    def zero_grad(self):
-        self.pose_optimizer.zero_grad()
+    def zero_grad(self, set_to_none=True):
+        self.pose_optimizer.zero_grad(set_to_none=set_to_none)
         for viewpoint_cam in self.viewpoint_stack:
             viewpoint_cam.cam_rot_delta.data.fill_(0)
             viewpoint_cam.cam_trans_delta.data.fill_(0)
