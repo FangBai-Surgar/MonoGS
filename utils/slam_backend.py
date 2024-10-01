@@ -316,7 +316,7 @@ class BackEnd(mp.Process):
                 # Here we assume a good focal initialization has been attained in frontend PnP module, by fixing 3D Gaussians and poses and then optimizing focal only
                 if self.require_calibration and self.initialized:
                     if (self.calibration_optimizers is not None) and (not prune) and (not gaussian_split) and iters != 1:
-                        if iters >= 30:
+                        if iters >= 50:
                             lr = lr_exp_decay_helper(step=cur_itr, lr_init=0.01, lr_final=1e-4, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=iters)
                             self.calibration_optimizers.update_focal_learning_rate(lr = lr, scale = None)
                         self.calibration_optimizers.focal_step()
@@ -539,7 +539,7 @@ class BackEnd(mp.Process):
                     pose_opt_params = []
                     calib_opt_frames_stack = []
                     frames_to_optimize = self.config["Training"]["pose_window"]
-                    iter_per_kf = self.mapping_itr_num if self.single_thread else 20
+                    iter_per_kf = self.mapping_itr_num if self.single_thread else 49
                     if not self.initialized:
                         if (
                             len(self.current_window)
