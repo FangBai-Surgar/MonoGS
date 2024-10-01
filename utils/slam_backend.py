@@ -326,7 +326,7 @@ class BackEnd(mp.Process):
                     self.calibration_optimizers.zero_grad(set_to_none=True)
                     # In the 1st iteration of Adam, always the update = lr, irregardless of the gradient magnitude. Here 0.01 means 1% of focal chagne.
                     # don't update pose and 3D gaussian in this "warming up" stage.
-                    if cur_itr < 3:
+                    if cur_itr < 5:
                         continue
 
 
@@ -595,6 +595,9 @@ class BackEnd(mp.Process):
                     self.keyframe_optimizers = torch.optim.Adam(pose_opt_params)
                     self.keyframe_optimizers.zero_grad()
 
+                    
+                    self.require_calibration = True if cur_frame_idx > 100 else False
+
                     if self.require_calibration and self.initialized and calibration_identifier_cnt >= 2:
                         # self.viewpoint_refinement(self.current_window, iters=50)
                         H = viewpoint.image_height
@@ -603,8 +606,8 @@ class BackEnd(mp.Process):
                         self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack, focal_ref)
                         self.calibration_optimizers.maximum_newton_steps = 0 # diable newton update
                         self.calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
-                        self.calibration_optimizers.update_focal_learning_rate(lr = 0.001)
-                        print(f"calibration optimizer. current_window [kf_idx]: {current_window}")                        
+                        self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)
+                        print(f"calibration optimizer. current_window [kf_idx]: {current_window}, focal_ref: {focal_ref:0.3f}")                        
                     else:
                         self.calibration_optimizers = None
                     

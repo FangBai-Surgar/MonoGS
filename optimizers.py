@@ -153,7 +153,7 @@ class CalibrationOptimizer:
                     focal = viewpoint_cam.fx
                     viewpoint_cam.fx += focal_delta
                     viewpoint_cam.fy += viewpoint_cam.aspect_ratio * focal_delta
-                print(f">> opt_focal = {viewpoint_cam.fx:.3f}, update = {focal_delta:.4f}, update_normalized = {focal_delta_normalized:.7f}, gradient_normalized = {focal_grad_normalized:.7f}")
+                print(f">> opt_focal: {viewpoint_cam.fx:.3f}, df: {focal_delta:.4f}, df_normalized: {focal_delta_normalized:.7f}, grad_normalized: {focal_grad_normalized:.7f}")
                 return focal/self.focal_gradient_normalizer, focal_grad_normalized
 
 
