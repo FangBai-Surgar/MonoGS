@@ -152,7 +152,7 @@ class BackEnd(mp.Process):
     def map(self, current_window, prune=False, iters=1):
         if len(current_window) == 0:
             return
-        print(f"slam_backend::map() current_window={current_window}, prune={prune}, iters={iters}")
+        # print(f"slam_backend::map() current_window={current_window}, prune={prune}, iters={iters}")
 
         viewpoint_stack = [self.viewpoints[kf_idx] for kf_idx in current_window]
         random_viewpoint_stack = []

@@ -17,6 +17,7 @@ from utils.slam_utils import get_loss_tracking, get_median_depth
 from optimizers import CalibrationOptimizer, PoseOptimizer, lr_exp_decay_helper
 
 from gaussian_scale_space import image_conv_gaussian_separable
+import rich
 
 
 class FrontEnd(mp.Process):
@@ -413,12 +414,13 @@ class FrontEnd(mp.Process):
                 )
 
 
-                # focal tracking
-                if self.require_calibration and self.initialized and signal_calibration_change:
-                    self.focal_tracking (cur_frame_idx, viewpoint, gaussian_scale_t = 1.0, max_iter_num = 20)
-
-                # pose tracking
-                render_pkg = self.tracking(cur_frame_idx, viewpoint)
+                # pose and focal length intialization from given 3D structure.
+                if self.require_calibration and self.initialized:
+                    render_pkg = self.tracking(cur_frame_idx, viewpoint)
+                    render_pkg = self.focal_tracking (cur_frame_idx, viewpoint)
+                    rich.print(f"Optimized by focal_tracking\n  R: {viewpoint.R}, \n  T = {viewpoint.T}\n  fx: {viewpoint.fx}, fy: {viewpoint.fy}, kappa: {viewpoint.kappa}")
+                else:
+                    render_pkg = self.tracking(cur_frame_idx, viewpoint)
 
 
                 current_window_dict = {}
@@ -529,7 +531,9 @@ class FrontEnd(mp.Process):
 
 
     
-    def focal_tracking (self, cur_frame_idx, viewpoint, gaussian_scale_t = 0.0, max_iter_num = 100):
+    def focal_tracking (self, cur_frame_idx, viewpoint, gaussian_scale_t = 1.0, max_iter_num = 30):
+
+        rich.print(f"\n[bold red]slam_frontend::focal tracking() cur_frame_idx={cur_frame_idx}, uid={viewpoint.uid}[/bold red]")
 
         viewpoint_stack = []
         viewpoint_stack.append(viewpoint)
@@ -541,19 +545,19 @@ class FrontEnd(mp.Process):
         calibration_optimizers = CalibrationOptimizer(viewpoint_stack, focal_ref) # only one view
         calibration_optimizers.maximum_newton_steps = 0 # diable newton update
         calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
-        # calibration_optimizers.update_focal_learning_rate(lr = 0.01)
+        calibration_optimizers.update_focal_learning_rate(lr = 0.1)
 
         pose_optimizer = PoseOptimizer(viewpoint_stack)
 
         rgb_boundary_threshold = 0.01
 
+        rich.print(f"  R: {viewpoint.R}, \n  T = {viewpoint.T}\n  fx: {viewpoint.fx}, fy: {viewpoint.fy}, kappa: {viewpoint.kappa}")
+
         for itr in range(max_iter_num):
 
-            lr = lr_exp_decay_helper(step=itr, lr_init=0.1, lr_final=1e-6, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=max_iter_num)
-            calibration_optimizers.update_focal_learning_rate(lr = lr, scale = None)
+            # lr = lr_exp_decay_helper(step=itr, lr_init=0.1, lr_final=1e-4, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=max_iter_num)
+            # calibration_optimizers.update_focal_learning_rate(lr = lr, scale = None)
 
-            calibration_optimizers.zero_grad()
-            pose_optimizer.zero_grad()
 
             # print(f"focal_tracking iter [{itr}]: fx = {viewpoint.fx}, fy = {viewpoint.fy}, kappa = {viewpoint.kappa}")
 
@@ -588,9 +592,12 @@ class FrontEnd(mp.Process):
 
             with torch.no_grad():
                 converged = calibration_optimizers.focal_step() # optimize focal only
-                if itr > 5:
+                if itr > 10:
                     pose_optimizer.step()
                 # converged = False
+                calibration_optimizers.zero_grad()
+                pose_optimizer.zero_grad()
+
 
             if itr % 2 == 0:
                 self.q_main2vis.put(
@@ -605,7 +612,7 @@ class FrontEnd(mp.Process):
                 time.sleep(0.01)
             if converged:
                 break
-        print(f"initialize focal length from tracking")
+        rich.print(f"[bold red]slam_frontend::focal tracking() cur_frame_idx={cur_frame_idx}, max_iter_num={max_iter_num}, used_itr={itr}[/bold red]")
 
         return render_pkg
     
