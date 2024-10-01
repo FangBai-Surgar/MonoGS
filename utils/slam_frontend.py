@@ -392,13 +392,34 @@ class FrontEnd(mp.Process):
                 )
                 viewpoint.compute_grad_mask(self.config)
 
-                # initialize calibration and pose to the previous camera
-                signal_calibration_change = False
-                if len(self.current_window):
-                    last_keyframe_idx = self.current_window[0]
-                    prev = self.cameras[last_keyframe_idx]
-                    viewpoint.update_calibration (prev.fx, prev.fy, prev.kappa)
-                    signal_calibration_change = (viewpoint.calibration_identifier != prev.calibration_identifier)
+                ###### test code block        
+                if self.require_calibration and cur_frame_idx > 100 and cur_frame_idx < 150:
+                    viewpoint.calibration_identifier = 1
+                if self.require_calibration and cur_frame_idx > 150 and cur_frame_idx < 250:
+                    viewpoint.calibration_identifier = 2
+
+
+                # initialize calibration to the previous frame
+                if len(self.cameras) > self.use_every_n_frames:
+                    prev = self.cameras[cur_frame_idx - self.use_every_n_frames]
+                else:
+                    prev = viewpoint                
+                viewpoint.update_calibration (prev.fx, prev.fy, prev.kappa)
+                signal_calibration_change = (viewpoint.calibration_identifier != prev.calibration_identifier)
+
+                ###### test code block
+                if self.require_calibration and signal_calibration_change:
+                    H = viewpoint.image_height
+                    W = viewpoint.image_width
+                    focal_ref = np.sqrt(H*H + W*W)/2
+                    viewpoint.fx = focal_ref
+                    viewpoint.fy = viewpoint.aspect_ratio * focal_ref
+                    rich.print(f"\n[bold red]FrontEnd: calibration change detected at frame_idx: [/bold red]{cur_frame_idx}")
+                    viewpoint.fx *= 0.7
+                    viewpoint.fy *= 0.7
+                    viewpoint.kappa = 0.0
+
+
 
                 self.cameras[cur_frame_idx] = viewpoint
 
@@ -418,7 +439,7 @@ class FrontEnd(mp.Process):
                     self.init_focal(cur_frame_idx, viewpoint)
 
                 # pose and focal length intialization from given 3D structure.
-                if self.require_calibration and self.initialized and False:
+                if self.require_calibration and self.initialized and signal_calibration_change:
                     render_pkg = self.tracking_calib (cur_frame_idx, viewpoint)
                 else:
                     render_pkg = self.tracking(cur_frame_idx, viewpoint)
@@ -547,13 +568,24 @@ class FrontEnd(mp.Process):
         calibration_optimizers = CalibrationOptimizer(viewpoint_stack, focal_ref) # only one view
         calibration_optimizers.maximum_newton_steps = 0 # diable newton update
         calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
-        calibration_optimizers.update_focal_learning_rate(lr = 0.1)
+        calibration_optimizers.update_focal_learning_rate(lr = 0.01)
 
         rgb_boundary_threshold = 0.01
 
         rich.print(f">> fx: {viewpoint.fx}, fy: {viewpoint.fy}, kappa: {viewpoint.kappa}")
 
         for itr in range(max_iter_num):
+
+            if itr % 5 == 0:
+                self.q_main2vis.put(
+                    gui_utils.GaussianPacket(
+                        current_frame=viewpoint,
+                        gtcolor=viewpoint.original_image,
+                        gtdepth=viewpoint.depth
+                        if not self.monocular
+                        else np.zeros((viewpoint.image_height, viewpoint.image_width)),
+                    )
+                )
 
             # lr = lr_exp_decay_helper(step=itr, lr_init=0.1, lr_final=1e-4, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=max_iter_num)
             # calibration_optimizers.update_focal_learning_rate(lr = lr, scale = None)
@@ -613,7 +645,7 @@ class FrontEnd(mp.Process):
         calibration_optimizer = CalibrationOptimizer(viewpoint_stack, focal_ref) # only one view
         calibration_optimizer.maximum_newton_steps = 0 # diable newton update
         calibration_optimizer.num_line_elements = 0 # diasable saving sample points for line fitting
-        calibration_optimizer.update_focal_learning_rate(lr = 0.005)
+        calibration_optimizer.update_focal_learning_rate(lr = 0.01)
 
 
         opt_params = []
@@ -650,6 +682,18 @@ class FrontEnd(mp.Process):
 
 
         for tracking_itr in range(self.tracking_itr_num):
+
+            if tracking_itr % 5 == 0:
+                self.q_main2vis.put(
+                    gui_utils.GaussianPacket(
+                        current_frame=viewpoint,
+                        gtcolor=viewpoint.original_image,
+                        gtdepth=viewpoint.depth
+                        if not self.monocular
+                        else np.zeros((viewpoint.image_height, viewpoint.image_width)),
+                    )
+                )
+
             render_pkg = render(
                 viewpoint, self.gaussians, self.pipeline_params, self.background
             )
@@ -664,23 +708,16 @@ class FrontEnd(mp.Process):
             )
             loss_tracking.backward()
 
+            converged = False
+
             with torch.no_grad():
                 calibration_optimizer.focal_step()
                 calibration_optimizer.zero_grad()
-                pose_optimizer.step()
-                converged = update_pose(viewpoint)
+                if tracking_itr > 3:
+                    pose_optimizer.step()
+                    converged = update_pose(viewpoint)
+                pose_optimizer.zero_grad()
 
-
-            if tracking_itr % 10 == 0:
-                self.q_main2vis.put(
-                    gui_utils.GaussianPacket(
-                        current_frame=viewpoint,
-                        gtcolor=viewpoint.original_image,
-                        gtdepth=viewpoint.depth
-                        if not self.monocular
-                        else np.zeros((viewpoint.image_height, viewpoint.image_width)),
-                    )
-                )
             if converged:
                 break
 

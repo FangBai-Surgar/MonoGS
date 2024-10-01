@@ -418,7 +418,8 @@ class SLAM_GUI:
                 self.widget3d.look_at(viewpoint[0], viewpoint[1], viewpoint[2])
 
             # calibration parameters panel output
-            self.calib_info.text = "fx: {:.3f},            \tinit: {:.3f}\nfy: {:.3f},            \tinit: {:.3f}\ncx: {:.3f}, \ncy: {:.3f}, \nkappa: {:.6f}, \tinit: {:.6f}".format(
+            self.calib_info.text = "uid: {},  calib_id: {}\nfx: {:.3f},            \tinit: {:.3f}\nfy: {:.3f},            \tinit: {:.3f}\ncx: {:.3f}, \ncy: {:.3f}, \nkappa: {:.6f}, \tinit: {:.6f}".format(
+                gaussian_packet.current_frame.uid, gaussian_packet.current_frame.calibration_identifier,
                 gaussian_packet.current_frame.fx, gaussian_packet.current_frame.fx_init,
                 gaussian_packet.current_frame.fy, gaussian_packet.current_frame.fy_init,
                 gaussian_packet.current_frame.cx, 
