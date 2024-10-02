@@ -203,7 +203,6 @@ class FrontEnd(mp.Process):
                 break
 
         self.median_depth = get_median_depth(depth, opacity)
-        # print(f"end pose_tracking")
         return render_pkg
 
     def is_keyframe(
@@ -318,7 +317,6 @@ class FrontEnd(mp.Process):
 
         for kf_id, kf_R, kf_T, kf_fx, kf_fy, kf_kappa in keyframes:
             self.cameras[kf_id].update_RT(kf_R.clone(), kf_T.clone())
-            # update camera calibration
             self.cameras[kf_id].update_calibration(kf_fx, kf_fy, kf_kappa)
 
 
@@ -446,14 +444,13 @@ class FrontEnd(mp.Process):
                 # use the pose from the neartest frame
                 if self.require_calibration and self.initialized and signal_calibration_change:
                     self.init_focal (viewpoint, gaussian_scale_t = 10.0, learning_rate = 0.1, max_iter_num = 20)
-                    # self.init_focal (viewpoint, gaussian_scale_t = 5.0, learning_rate = 0.05, max_iter_num = 10)
-                    self.init_focal (viewpoint, gaussian_scale_t = 1.0, learning_rate = 0.01, max_iter_num = 50)
+                    self.init_focal (viewpoint, gaussian_scale_t = 5.0, learning_rate = 0.01, max_iter_num = 50)
 
                 render_pkg = self.tracking(cur_frame_idx, viewpoint)
 
-                # # pose and focal length intialization from given 3D structure.
+                # pose and focal length intialization from given 3D structure.
                 # if self.require_calibration and self.initialized and signal_calibration_change:
-                #     render_pkg = self.tracking_calib (cur_frame_idx, viewpoint)
+                #     render_pkg = self.tracking_calib (cur_frame_idx, viewpoint, learning_rate = 0.005, max_iter_num = self.tracking_itr_num)
 
 
                 current_window_dict = {}
@@ -519,7 +516,7 @@ class FrontEnd(mp.Process):
                     self.request_keyframe(
                         cur_frame_idx, viewpoint, self.current_window, depth_map
                     )
-                    rich.print(f"[bold blue]FrontEnd Sent    :[/bold blue] [{cur_frame_idx}]: fx = {viewpoint.fx:.3f}, fy = {viewpoint.fy:.3f}, kappa = {viewpoint.kappa:.6f}, calib_id = {viewpoint.calibration_identifier}")
+                    rich.print(f"[bold blue]FrontEnd Send    :[/bold blue] [{cur_frame_idx}]: fx: {viewpoint.fx:.3f}, fy: {viewpoint.fy:.3f}, kappa: {viewpoint.kappa:.6f}, calib_id: {viewpoint.calibration_identifier}")
                 else:
                     self.cleanup(cur_frame_idx)
                 cur_frame_idx += 1
@@ -552,8 +549,8 @@ class FrontEnd(mp.Process):
 
                 elif data[0] == "keyframe":
                     self.sync_backend(data)
-                    self.requested_keyframe -= 1
                     self.sync_backend_calibration(cur_frame_idx)
+                    self.requested_keyframe -= 1
 
                 elif data[0] == "init":
                     self.sync_backend(data)
@@ -628,7 +625,7 @@ class FrontEnd(mp.Process):
 
 
     
-    def tracking_calib (self, cur_frame_idx, viewpoint, max_iter_num = 100):
+    def tracking_calib (self, cur_frame_idx, viewpoint, learning_rate = 0.005, max_iter_num = 100):
 
         rich.print(f"\n[bold red]slam_frontend::tracking_calib() cur_frame_idx={cur_frame_idx}, uid={viewpoint.uid}[/bold red]")
         rich.print(f"[BEGIND]\n  R: {viewpoint.R}, \n  T = {viewpoint.T}\n  fx: {viewpoint.fx}, fy: {viewpoint.fy}, kappa: {viewpoint.kappa}")
@@ -643,7 +640,7 @@ class FrontEnd(mp.Process):
         calibration_optimizer = CalibrationOptimizer(viewpoint_stack, focal_ref) # only one view
         calibration_optimizer.maximum_newton_steps = 0 # diable newton update
         calibration_optimizer.num_line_elements = 0 # diasable saving sample points for line fitting
-        calibration_optimizer.update_focal_learning_rate(lr = 0.001)
+        calibration_optimizer.update_focal_learning_rate(lr = learning_rate)
 
 
         opt_params = []
@@ -681,8 +678,8 @@ class FrontEnd(mp.Process):
 
         for tracking_itr in range(self.tracking_itr_num):
 
-            pose_warm_up = (tracking_itr > 2 and tracking_itr <= 5)
-            focal_warm_up = (tracking_itr <= 2)
+            pose_warm_up = False and (tracking_itr > 2 and tracking_itr <= 5)
+            focal_warm_up = False and (tracking_itr <= 2)
 
             if tracking_itr % 5 == 0:
                 self.q_main2vis.put(

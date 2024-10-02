@@ -321,11 +321,10 @@ class BackEnd(mp.Process):
                             lr = lr_exp_decay_helper(step=cur_itr, lr_init=0.01, lr_final=1e-4, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=iters)
                             self.calibration_optimizers.update_focal_learning_rate(lr = lr, scale = None)
                         self.calibration_optimizers.focal_step()
-                        if self.allow_lens_distortion and cur_itr > 5:
+                        if self.allow_lens_distortion and cur_itr > 2:
                             self.calibration_optimizers.kappa_step()
                 if self.calibration_optimizers is not None:
                     self.calibration_optimizers.zero_grad(set_to_none=True)
-
 
                 # Pose update
                 self.keyframe_optimizers.step()
@@ -343,89 +342,6 @@ class BackEnd(mp.Process):
 
 
         return gaussian_split
-
-
-    def viewpoint_refinement (self, current_window, iters=20):
-        if len(current_window) == 0:
-            return
-
-        viewpoint_stack = [self.viewpoints[kf_idx] for kf_idx in current_window]
-        random_viewpoint_stack = []
-        frames_to_optimize = self.config["Training"]["pose_window"]
-
-        current_window_set = set(current_window)
-        for cam_idx, viewpoint in self.viewpoints.items():
-            if cam_idx in current_window_set:
-                continue
-            random_viewpoint_stack.append(viewpoint)
-
-        opts = viewpoint_stack + random_viewpoint_stack
-
-        pose_optimizer = PoseOptimizer(opts)
-
-        calibration_optimizer = CalibrationOptimizer(opts)
-        calibration_optimizer.maximum_newton_steps = 0 # diable newton update
-        calibration_optimizer.num_line_elements = 0 # diasable saving sample points for line fitting
-        calibration_optimizer.update_focal_learning_rate(lr = 0.005)
-
-
-        for cur_itr in range(iters):
-
-            loss_mapping = 0
-
-            for cam_idx in range(len(current_window)):
-                viewpoint = viewpoint_stack[cam_idx]
-                render_pkg = render(
-                    viewpoint, self.gaussians, self.pipeline_params, self.background
-                )
-                (
-                    image,
-                    depth,
-                    opacity,
-                ) = (
-                    render_pkg["render"],
-                    render_pkg["depth"],
-                    render_pkg["opacity"],
-                )
-
-                loss_mapping += get_loss_mapping(
-                    self.config, image, depth, viewpoint, opacity
-                )
-
-            for cam_idx in torch.randperm(len(random_viewpoint_stack))[:2]:
-                viewpoint = random_viewpoint_stack[cam_idx]
-                render_pkg = render(
-                    viewpoint, self.gaussians, self.pipeline_params, self.background
-                )
-                (
-                    image,
-                    depth,
-                    opacity,
-                ) = (
-                    render_pkg["render"],
-                    render_pkg["depth"],
-                    render_pkg["opacity"],
-                )
-                loss_mapping += get_loss_mapping(
-                    self.config, image, depth, viewpoint, opacity
-                )
-
-            loss_mapping.backward()
-
-            with torch.no_grad():
-                if iters >= 50:
-                    lr = lr_exp_decay_helper(step=cur_itr, lr_init=0.01, lr_final=1e-4, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=iters)
-                    calibration_optimizer.update_focal_learning_rate(lr = lr, scale = None)
-                calibration_optimizer.focal_step()
-                if self.allow_lens_distortion and cur_itr > 5:
-                    calibration_optimizer.kappa_step()
-                calibration_optimizer.zero_grad(set_to_none=True)
-                if cur_itr < 2:
-                    continue
-
-                # Pose update
-                pose_optimizer.step()
-                pose_optimizer.zero_grad(set_to_none=True)
 
 
 
@@ -531,7 +447,7 @@ class BackEnd(mp.Process):
                     current_calibration_identifier = self.viewpoints[cur_frame_idx].calibration_identifier
                     calibration_identifier_cnt = 0
 
-                    rich.print(f"[bold blue]BackEnd  Receive :[/bold blue] [{cur_frame_idx}]: fx = {viewpoint.fx:.3f}, fy = {viewpoint.fy:.3f}, kappa = {viewpoint.kappa:.6f}, calib_id = {viewpoint.calibration_identifier}")
+                    rich.print(f"[bold blue]BackEnd  Receive :[/bold blue] [{cur_frame_idx}]: fx: {viewpoint.fx:.3f}, fy: {viewpoint.fy:.3f}, kappa: {viewpoint.kappa:.6f}, calib_id: {viewpoint.calibration_identifier}")
 
                     pose_opt_params = []
                     calib_opt_frames_stack = []
@@ -616,7 +532,7 @@ class BackEnd(mp.Process):
 
 
                     self.push_to_frontend("keyframe")
-                    rich.print(f"[bold blue]BackEnd  Optimize:[/bold blue] [{cur_frame_idx}]: fx = {self.viewpoints[cur_frame_idx].fx:.3f}, fy = {self.viewpoints[cur_frame_idx].fy:.3f}, kappa = {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id = {self.viewpoints[cur_frame_idx].calibration_identifier}, iter_per_kf = {iter_per_kf}")
+                    rich.print(f"[bold blue]BackEnd  Optimize:[/bold blue] [{cur_frame_idx}]: fx: {self.viewpoints[cur_frame_idx].fx:.3f}, fy: {self.viewpoints[cur_frame_idx].fy:.3f}, kappa: {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id: {self.viewpoints[cur_frame_idx].calibration_identifier}, iter_per_kf: {iter_per_kf}\n")
 
                     # update all cameras with the same calibration_identifier
                     if self.calibration_optimizers is not None:

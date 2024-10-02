@@ -270,7 +270,7 @@ class CalibrationOptimizer:
             if scale is not None:
                 lr = param_group["lr"]
                 param_group["lr"] = scale * lr if lr >= 0.001 else lr
-            rich.print("\n[bold green]focal_optimizer: update learning rate to:[/bold green]", param_group["lr"])
+            rich.print("[bold green]focal_optimizer: update learning rate to:[/bold green]", param_group["lr"])
 
 
 
@@ -281,7 +281,7 @@ class CalibrationOptimizer:
             if scale is not None:
                 lr = param_group["lr"]
                 param_group["lr"] = scale * lr if lr >= 0.0001 else lr
-            rich.print("\n[bold green]kappa_optimizer: update learning rate to:[/bold green]", param_group["lr"])
+            rich.print("[bold green]kappa_optimizer: update learning rate to:[/bold green]", param_group["lr"])
 
 
 
