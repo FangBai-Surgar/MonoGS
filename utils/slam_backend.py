@@ -518,7 +518,7 @@ class BackEnd(mp.Process):
                         self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack, focal_ref)
                         self.calibration_optimizers.maximum_newton_steps = 0 # diable newton update
                         self.calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
-                        self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)                  
+                        self.calibration_optimizers.update_focal_learning_rate(lr = 0.005)                  
                     else:
                         self.calibration_optimizers = None
 
