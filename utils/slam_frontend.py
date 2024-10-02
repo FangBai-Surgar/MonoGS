@@ -14,6 +14,11 @@ from utils.multiprocessing_utils import clone_obj
 from utils.pose_utils import update_pose
 from utils.slam_utils import get_loss_tracking, get_median_depth
 
+from optimizers import CalibrationOptimizer, PoseOptimizer, lr_exp_decay_helper
+
+from gaussian_scale_space import image_conv_gaussian_separable
+import rich
+
 
 class FrontEnd(mp.Process):
     def __init__(self, config):
@@ -42,6 +47,11 @@ class FrontEnd(mp.Process):
         self.cameras = dict()
         self.device = "cuda:0"
         self.pause = False
+
+        # calibration control params
+        self.require_calibration = False
+        self.MODULE_TEST_CALIBRATION = True
+
 
     def set_hyperparams(self):
         self.save_dir = self.config["Results"]["save_dir"]
@@ -307,14 +317,8 @@ class FrontEnd(mp.Process):
 
         for kf_id, kf_R, kf_T, kf_fx, kf_fy, kf_kappa in keyframes:
             self.cameras[kf_id].update_RT(kf_R.clone(), kf_T.clone())
-            # update camera calibration
-            self.updateCalibration(self.cameras[kf_id], kf_fx, kf_fy, kf_kappa)
+            self.cameras[kf_id].update_calibration(kf_fx, kf_fy, kf_kappa)
 
-    @staticmethod
-    def updateCalibration(viewpoint_cam, fx, fy, kappa):
-        viewpoint_cam.fx = fx
-        viewpoint_cam.fy = fy
-        viewpoint_cam.kappa = kappa
 
 
     def cleanup(self, cur_frame_idx):
@@ -325,19 +329,20 @@ class FrontEnd(mp.Process):
 
     def run(self):
         cur_frame_idx = 0
-        projection_matrix = getProjectionMatrix2(
-            znear=0.01,
-            zfar=100.0,
-            fx=self.dataset.fx,
-            fy=self.dataset.fy,
-            cx=self.dataset.cx,
-            cy=self.dataset.cy,
-            W=self.dataset.width,
-            H=self.dataset.height,
-        ).transpose(0, 1)
-        projection_matrix = projection_matrix.to(device=self.device)
+        # projection_matrix = getProjectionMatrix2(
+        #     znear=0.01,
+        #     zfar=100.0,
+        #     fx=self.dataset.fx,
+        #     fy=self.dataset.fy,
+        #     cx=self.dataset.cx,
+        #     cy=self.dataset.cy,
+        #     W=self.dataset.width,
+        #     H=self.dataset.height,
+        # ).transpose(0, 1)
+        # projection_matrix = projection_matrix.to(device=self.device)
+        projection_matrix = None
         tic = torch.cuda.Event(enable_timing=True)
-        toc = torch.cuda.Event(enable_timing=True)
+        toc = torch.cuda.Event(enable_timing=True)        
 
         while True:
             if self.q_vis2main.empty():
@@ -386,13 +391,43 @@ class FrontEnd(mp.Process):
                 )
                 viewpoint.compute_grad_mask(self.config)
 
-                # copy the last calibration to current viewpoint
-                if len(self.current_window):
-                    last_frame_idx = self.current_window[0]
-                    fx = self.cameras[last_frame_idx].fx
-                    fy = self.cameras[last_frame_idx].fy
-                    kappa = self.cameras[last_frame_idx].kappa
-                    self.updateCalibration (viewpoint, fx, fy, kappa)
+
+                ###### test code block
+                if self.MODULE_TEST_CALIBRATION:
+                    if cur_frame_idx >= 100 and cur_frame_idx < 200:
+                        viewpoint.calibration_identifier = 1
+                        focal_ref = 400
+                    elif cur_frame_idx >= 200 and cur_frame_idx < 300:
+                        viewpoint.calibration_identifier = 2
+                        focal_ref = 350
+                    elif cur_frame_idx >= 300 and cur_frame_idx < 400:
+                        viewpoint.calibration_identifier = 3
+                        focal_ref = 700
+                    elif cur_frame_idx >= 400 and cur_frame_idx < 500:
+                        viewpoint.calibration_identifier = 4
+                        focal_ref = 900
+                    elif cur_frame_idx >= 500 and cur_frame_idx < 600:
+                        viewpoint.calibration_identifier = 5
+                        focal_ref = 200
+                    else:
+                        viewpoint.calibration_identifier = 0
+
+
+                signal_calibration_change = False
+                if len(self.cameras) > self.use_every_n_frames:
+                    prev = self.cameras[cur_frame_idx - self.use_every_n_frames] # last frame in tracking
+                    viewpoint.update_calibration (prev.fx, prev.fy, prev.kappa) # use last frame calibration
+                    viewpoint.update_RT(prev.R, prev.T) # use last frame pose
+                    if viewpoint.calibration_identifier != prev.calibration_identifier:
+                        signal_calibration_change = True
+                        rich.print(f"\n[bold red]FrontEnd: calibration change detected at frame_idx: [/bold red]{cur_frame_idx}")
+
+
+                ###### test code block
+                if self.MODULE_TEST_CALIBRATION and signal_calibration_change:
+                        viewpoint.fx = focal_ref
+                        viewpoint.fy = viewpoint.aspect_ratio * focal_ref
+  
 
                 self.cameras[cur_frame_idx] = viewpoint
 
@@ -406,8 +441,17 @@ class FrontEnd(mp.Process):
                     len(self.current_window) == self.window_size
                 )
 
-                # Tracking
+                # use the pose from the neartest frame
+                if self.require_calibration and self.initialized and signal_calibration_change:
+                    self.init_focal (viewpoint, gaussian_scale_t = 10.0, learning_rate = 0.1, max_iter_num = 20)
+                    self.init_focal (viewpoint, gaussian_scale_t = 5.0, learning_rate = 0.01, max_iter_num = 50)
+
                 render_pkg = self.tracking(cur_frame_idx, viewpoint)
+
+                # pose and focal length intialization from given 3D structure.
+                # if self.require_calibration and self.initialized and signal_calibration_change:
+                #     render_pkg = self.tracking_calib (cur_frame_idx, viewpoint, learning_rate = 0.005, max_iter_num = self.tracking_itr_num)
+
 
                 current_window_dict = {}
                 current_window_dict[self.current_window[0]] = self.current_window[1:]
@@ -450,7 +494,7 @@ class FrontEnd(mp.Process):
                     )
                 if self.single_thread:
                     create_kf = check_time and create_kf
-                if create_kf:
+                if create_kf: # or signal_calibration_change:
                     self.current_window, removed = self.add_to_window(
                         cur_frame_idx,
                         curr_visibility,
@@ -472,6 +516,7 @@ class FrontEnd(mp.Process):
                     self.request_keyframe(
                         cur_frame_idx, viewpoint, self.current_window, depth_map
                     )
+                    rich.print(f"[bold blue]FrontEnd Send    :[/bold blue] [{cur_frame_idx}]: fx: {viewpoint.fx:.3f}, fy: {viewpoint.fy:.3f}, kappa: {viewpoint.kappa:.6f}, calib_id: {viewpoint.calibration_identifier}")
                 else:
                     self.cleanup(cur_frame_idx)
                 cur_frame_idx += 1
@@ -500,9 +545,11 @@ class FrontEnd(mp.Process):
                 data = self.frontend_queue.get()
                 if data[0] == "sync_backend":
                     self.sync_backend(data)
+                    self.sync_backend_calibration(cur_frame_idx)
 
                 elif data[0] == "keyframe":
                     self.sync_backend(data)
+                    self.sync_backend_calibration(cur_frame_idx)
                     self.requested_keyframe -= 1
 
                 elif data[0] == "init":
@@ -512,3 +559,184 @@ class FrontEnd(mp.Process):
                 elif data[0] == "stop":
                     Log("Frontend Stopped.")
                     break
+
+
+
+    
+    def init_focal (self, viewpoint, gaussian_scale_t = 5.0, learning_rate = 0.1, max_iter_num = 20):
+
+        viewpoint_stack = []
+        viewpoint_stack.append(viewpoint)
+
+        H = viewpoint.image_height
+        W = viewpoint.image_width
+        focal_ref = np.sqrt(H*H + W*W)/2
+
+        calibration_optimizers = CalibrationOptimizer(viewpoint_stack, focal_ref) # only one view
+        calibration_optimizers.maximum_newton_steps = 0 # diable newton update
+        calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
+        calibration_optimizers.update_focal_learning_rate(lr = learning_rate)
+
+        rgb_boundary_threshold = 0.01
+
+        for itr in range(max_iter_num):
+
+            if itr % 5 == 0:
+                self.q_main2vis.put(
+                    gui_utils.GaussianPacket(
+                        current_frame=viewpoint,
+                        gtcolor=viewpoint.original_image,
+                        gtdepth=viewpoint.depth
+                        if not self.monocular
+                        else np.zeros((viewpoint.image_height, viewpoint.image_width)),
+                    )
+                )
+
+            render_pkg = render(
+                viewpoint, self.gaussians, self.pipeline_params, self.background
+            )
+            image, depth, opacity = (
+                render_pkg["render"],
+                render_pkg["depth"],
+                render_pkg["opacity"],
+            )
+
+            gt_image = viewpoint.original_image.cuda() 
+            mask = (gt_image.sum(dim=0) > rgb_boundary_threshold)
+
+            # loss function
+            if gaussian_scale_t > 0.5: # Gaussian scale space 
+                image_scale_t = image_conv_gaussian_separable(image, sigma=gaussian_scale_t, epsilon=0.01)
+                gt_image_scale_t = image_conv_gaussian_separable(gt_image, sigma=gaussian_scale_t, epsilon=0.01)
+            else:
+                image_scale_t = image
+                gt_image_scale_t = gt_image
+
+            huber_loss_function = torch.nn.SmoothL1Loss(reduction = 'mean', beta = 1.0)
+            loss = huber_loss_function(image_scale_t*mask, gt_image_scale_t*mask)
+            loss.backward()     
+
+            with torch.no_grad():
+                converged = calibration_optimizers.focal_step() # optimize focal only
+                calibration_optimizers.zero_grad()            
+            if converged:
+                break
+
+
+
+    
+    def tracking_calib (self, cur_frame_idx, viewpoint, learning_rate = 0.005, max_iter_num = 100):
+
+        rich.print(f"\n[bold red]slam_frontend::tracking_calib() cur_frame_idx={cur_frame_idx}, uid={viewpoint.uid}[/bold red]")
+        rich.print(f"[BEGIND]\n  R: {viewpoint.R}, \n  T = {viewpoint.T}\n  fx: {viewpoint.fx}, fy: {viewpoint.fy}, kappa: {viewpoint.kappa}")
+
+        viewpoint_stack = []
+        viewpoint_stack.append(viewpoint)
+
+        H = viewpoint.image_height
+        W = viewpoint.image_width
+        focal_ref = np.sqrt(H*H + W*W)/2
+
+        calibration_optimizer = CalibrationOptimizer(viewpoint_stack, focal_ref) # only one view
+        calibration_optimizer.maximum_newton_steps = 0 # diable newton update
+        calibration_optimizer.num_line_elements = 0 # diasable saving sample points for line fitting
+        calibration_optimizer.update_focal_learning_rate(lr = learning_rate)
+
+
+        opt_params = []
+        opt_params.append(
+            {
+                "params": [viewpoint.cam_rot_delta],
+                "lr": self.config["Training"]["lr"]["cam_rot_delta"],
+                "name": "rot_{}".format(viewpoint.uid),
+            }
+        )
+        opt_params.append(
+            {
+                "params": [viewpoint.cam_trans_delta],
+                "lr": self.config["Training"]["lr"]["cam_trans_delta"],
+                "name": "trans_{}".format(viewpoint.uid),
+            }
+        )
+        opt_params.append(
+            {
+                "params": [viewpoint.exposure_a],
+                "lr": 0.01,
+                "name": "exposure_a_{}".format(viewpoint.uid),
+            }
+        )
+        opt_params.append(
+            {
+                "params": [viewpoint.exposure_b],
+                "lr": 0.01,
+                "name": "exposure_b_{}".format(viewpoint.uid),
+            }
+        )
+
+        pose_optimizer = torch.optim.Adam(opt_params)
+
+
+        for tracking_itr in range(self.tracking_itr_num):
+
+            pose_warm_up = False and (tracking_itr > 2 and tracking_itr <= 5)
+            focal_warm_up = False and (tracking_itr <= 2)
+
+            if tracking_itr % 5 == 0:
+                self.q_main2vis.put(
+                    gui_utils.GaussianPacket(
+                        current_frame=viewpoint,
+                        gtcolor=viewpoint.original_image,
+                        gtdepth=viewpoint.depth
+                        if not self.monocular
+                        else np.zeros((viewpoint.image_height, viewpoint.image_width)),
+                    )
+                )
+
+            render_pkg = render(
+                viewpoint, self.gaussians, self.pipeline_params, self.background
+            )
+            image, depth, opacity = (
+                render_pkg["render"],
+                render_pkg["depth"],
+                render_pkg["opacity"],
+            )
+            pose_optimizer.zero_grad()
+            loss_tracking = get_loss_tracking(
+                self.config, image, depth, opacity, viewpoint
+            )
+            loss_tracking.backward()
+
+            converged = False
+
+            with torch.no_grad():
+                if not pose_warm_up:
+                    calibration_optimizer.focal_step()
+                if not focal_warm_up:
+                    pose_optimizer.step()
+                    converged = update_pose(viewpoint)
+                calibration_optimizer.zero_grad()
+                pose_optimizer.zero_grad()
+
+            if converged:
+                break
+
+        rich.print(f"[END] in {tracking_itr} iters\n  R: {viewpoint.R}, \n  T = {viewpoint.T}\n  fx: {viewpoint.fx}, fy: {viewpoint.fy}, kappa: {viewpoint.kappa}")
+
+        self.median_depth = get_median_depth(depth, opacity)
+
+        return render_pkg
+    
+    
+
+    def sync_backend_calibration (self, cur_frame_idx):
+        if len(self.current_window):
+            last_keyframe_idx = self.current_window[0]
+            last_keyframe = self.cameras[last_keyframe_idx] # last keyframe (optimzied by backend)
+            last_frame = self.cameras[cur_frame_idx - self.use_every_n_frames] # last frame in tracking
+            if (last_keyframe.calibration_identifier == last_frame.calibration_identifier):
+                last_frame.update_calibration (last_keyframe.fx, last_keyframe.fy, last_keyframe.kappa)
+
+
+    
+
+

@@ -49,7 +49,7 @@ from utils.multiprocessing_utils import FakeQueue, clone_obj
 from depth_anything import DepthAnything
 
 
-from optimizers import CalibrationOptimizer, PoseOptimizer, LineDetection
+from optimizers import CalibrationOptimizer, PoseOptimizer, LineDetection, lr_exp_decay_helper
 
 from gaussian_scale_space import image_conv_gaussian_separable
 
@@ -196,8 +196,6 @@ class SFM(mp.Process):
                     viewpoint_cam.fy = viewpoint_cam.aspect_ratio * focal
                     viewpoint_cam.kappa = 0.0
 
-                self.calibration_optimizer.update_focal_learning_rate(lr = 2.0)  # start from a large leraning rate as we modify focal abruptly.
-
                 if self.use_gui:
                     cam_cnt = (cam_cnt+1) % len(self.viewpoint_stack)
                     self.push_to_gui(cam_cnt)
@@ -205,10 +203,11 @@ class SFM(mp.Process):
 
 
 
-            if iteration > self.start_calib_iter and (iteration - self.start_calib_iter) % 50 == 0:
-                self.calibration_optimizer.update_kappa_learning_rate(lr = None, scale = 0.1)
-                self.calibration_optimizer.update_focal_learning_rate(lr = None, scale = 0.1)
-
+            if iteration >= self.start_calib_iter:
+                step = iteration - self.start_calib_iter
+                lr = lr_exp_decay_helper(step, lr_init=0.1, lr_final=1e-3, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=30)
+                self.calibration_optimizer.update_focal_learning_rate (lr = lr, scale = None)
+    
 
             self.gaussians.update_learning_rate(iteration)
 
@@ -334,8 +333,7 @@ class SFM(mp.Process):
 
 
         focal_stack, focal_grad_stack = self.calibration_optimizer.get_focal_statistics(all = True)
-        for focal, focal_grad in zip(focal_stack, focal_grad_stack):
-            LineDetection(focal[:80], focal_grad[:80]).plot_figure(fname = pathlib.Path.home()/( "focal_cost_function_scale"+str(self.gaussian_scale_t)+".pdf" ) )
+        LineDetection(focal_stack[:80], focal_grad_stack[:80]).plot_figure(fname = pathlib.Path.home()/( "focal_cost_function_scale"+str(self.gaussian_scale_t)+".pdf" ) )
          
         
 

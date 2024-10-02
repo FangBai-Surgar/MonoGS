@@ -82,7 +82,7 @@ class Camera(nn.Module):
         # self.projection_matrix = self.projection_matrix.to(device=device)
 
     @staticmethod
-    def init_from_dataset(dataset, idx, projection_matrix):
+    def init_from_dataset(dataset, idx, projection_matrix = None):
         gt_color, gt_depth, gt_pose = dataset[idx]
         return Camera(
             idx,
@@ -143,6 +143,16 @@ class Camera(nn.Module):
     def update_RT(self, R, t):
         self.R = R.to(device=self.device)
         self.T = t.to(device=self.device)
+
+    def update_focal_kappa (self, focal, kappa):
+        self.fx = focal
+        self.fy = self.aspect_ratio * focal
+        self.kappa = kappa
+
+    def update_calibration (self, fx, fy, kappa):
+        self.fx = fx
+        self.fy = fy
+        self.kappa = kappa
 
     def compute_grad_mask(self, config):
         edge_threshold = config["Training"]["edge_threshold"]

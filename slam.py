@@ -94,6 +94,8 @@ class SLAM:
         self.frontend.backend_queue = backend_queue
         self.frontend.q_main2vis = q_main2vis
         self.frontend.q_vis2main = q_vis2main
+        # online calibration control
+        self.frontend.require_calibration = calib_opts.require_calibration
         self.frontend.set_hyperparams()
 
         self.backend.gaussians = self.gaussians

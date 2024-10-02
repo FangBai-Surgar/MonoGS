@@ -12,8 +12,9 @@ from utils.multiprocessing_utils import clone_obj
 from utils.pose_utils import update_pose
 from utils.slam_utils import get_loss_mapping
 
-from optimizers import CalibrationOptimizer
-
+from optimizers import CalibrationOptimizer, PoseOptimizer, lr_exp_decay_helper
+import numpy as np
+import rich
 
 class BackEnd(mp.Process):
     def __init__(self, config):
@@ -148,9 +149,10 @@ class BackEnd(mp.Process):
         Log("Initialized map")
         return render_pkg
 
-    def map(self, current_window, prune=False, iters=1):
+    def map(self, current_window, prune=False, iters=1, calibrate=False):
         if len(current_window) == 0:
             return
+        # print(f"slam_backend::map() current_window={current_window}, prune={prune}, iters={iters}")
 
         viewpoint_stack = [self.viewpoints[kf_idx] for kf_idx in current_window]
         random_viewpoint_stack = []
@@ -162,7 +164,7 @@ class BackEnd(mp.Process):
                 continue
             random_viewpoint_stack.append(viewpoint)
 
-        for _ in range(iters):
+        for cur_itr in range(iters):
             self.iteration_count += 1
             self.last_sent += 1
 
@@ -172,11 +174,8 @@ class BackEnd(mp.Process):
             radii_acm = []
             n_touched_acm = []
 
-            keyframes_opt = []
-
             for cam_idx in range(len(current_window)):
                 viewpoint = viewpoint_stack[cam_idx]
-                keyframes_opt.append(viewpoint)
                 render_pkg = render(
                     viewpoint, self.gaussians, self.pipeline_params, self.background
                 )
@@ -313,23 +312,34 @@ class BackEnd(mp.Process):
                     self.gaussians.reset_opacity_nonvisible(visibility_filter_acm)
                     gaussian_split = True
 
-                self.gaussians.optimizer.step()
-                self.gaussians.optimizer.zero_grad(set_to_none=True)
-                self.gaussians.update_learning_rate(self.iteration_count)
+                # Calibration update. only do calibration if slam has been initialized.
+                # Here we assume a good focal initialization has been attained in frontend PnP module, by fixing 3D Gaussians and poses and then optimizing focal only
+                # this function will perform prune, before doing Bundle adjustment. Thus it is not a good idea to perform calibration immediately
+                if calibrate and self.require_calibration and self.initialized:
+                    if (self.calibration_optimizers is not None) and (not prune) and (not gaussian_split):
+                        if iters >= 100:
+                            lr = lr_exp_decay_helper(step=cur_itr, lr_init=0.01, lr_final=1e-4, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=iters)
+                            self.calibration_optimizers.update_focal_learning_rate(lr = lr, scale = None)
+                        self.calibration_optimizers.focal_step()
+                        if self.allow_lens_distortion and cur_itr > 2:
+                            self.calibration_optimizers.kappa_step()
+                if self.calibration_optimizers is not None:
+                    self.calibration_optimizers.zero_grad(set_to_none=True)
+
+                # Pose update
                 self.keyframe_optimizers.step()
                 self.keyframe_optimizers.zero_grad(set_to_none=True)
-                # Pose update
                 for cam_idx in range(min(frames_to_optimize, len(current_window))):
                     viewpoint = viewpoint_stack[cam_idx]
                     if viewpoint.uid == 0:
                         continue
                     update_pose(viewpoint)
-                # only do calibration if slam has been initialized
-                if self.require_calibration and self.initialized:
-                    self.calibration_optimizers.focal_step()
-                    self.calibration_optimizers.kappa_step()
-                    print(f"calibration step. current_window [kf_idx]: {current_window}")
-                self.calibration_optimizers.zero_grad()
+
+                # Structure (3D Gaussian) update
+                self.gaussians.optimizer.step()
+                self.gaussians.optimizer.zero_grad(set_to_none=True)
+                self.gaussians.update_learning_rate(self.iteration_count)
+
 
         return gaussian_split
 
@@ -434,6 +444,11 @@ class BackEnd(mp.Process):
                     self.current_window = current_window
                     self.add_next_kf(cur_frame_idx, viewpoint, depth_map=depth_map)
 
+                    current_calibration_identifier = self.viewpoints[cur_frame_idx].calibration_identifier
+                    calibration_identifier_cnt = 0
+
+                    rich.print(f"[bold blue]BackEnd  Receive :[/bold blue] [{cur_frame_idx}]: fx: {viewpoint.fx:.3f}, fy: {viewpoint.fy:.3f}, kappa: {viewpoint.kappa:.6f}, calib_id: {viewpoint.calibration_identifier}")
+
                     pose_opt_params = []
                     calib_opt_frames_stack = []
                     frames_to_optimize = self.config["Training"]["pose_window"]
@@ -473,7 +488,8 @@ class BackEnd(mp.Process):
                                     "name": "trans_{}".format(viewpoint.uid),
                                 }
                             )
-                            calib_opt_frames_stack.append(viewpoint)                            
+                            calib_opt_frames_stack.append(viewpoint)
+                            calibration_identifier_cnt += 1 if viewpoint.calibration_identifier == current_calibration_identifier else 0
 
                         pose_opt_params.append(
                             {
@@ -490,19 +506,53 @@ class BackEnd(mp.Process):
                             }
                         )
                     self.keyframe_optimizers = torch.optim.Adam(pose_opt_params)
-                    self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack)
-                    self.calibration_optimizers.maximum_newton_steps = 0 # diable newton update
-                    self.calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
-                    print(f"calibration optimizer initialization. current_window [kf_idx]: {current_window}")
-
                     self.keyframe_optimizers.zero_grad()
-                    self.calibration_optimizers.zero_grad()
 
-                    self.map(self.current_window, iters=iter_per_kf)
+                    
+                    if self.require_calibration and self.initialized and calibration_identifier_cnt >= 2 and current_calibration_identifier != 0:
+                        # self.viewpoint_refinement(self.current_window, iters=50)
+                        H = viewpoint.image_height
+                        W = viewpoint.image_width
+                        focal_ref = np.sqrt(H*H + W*W)/2
+                        rich.print("[bold green]calibration optimizer[/bold green]. current_window: ", current_window)    
+                        self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack, focal_ref)
+                        self.calibration_optimizers.maximum_newton_steps = 0 # diable newton update
+                        self.calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
+                        self.calibration_optimizers.update_focal_learning_rate(lr = 0.005)                  
+                    else:
+                        self.calibration_optimizers = None
+
+                    iters = int(iter_per_kf/2) if self.calibration_optimizers is not None else iter_per_kf
+
+                    ### The order of following three matters a lot! ###
+                    if self.calibration_optimizers is not None:
+                        self.map(self.current_window, calibrate=True, iters=iters)
                     self.map(self.current_window, prune=True)
+                    self.map(self.current_window, iters=iters)
+
+
                     self.push_to_frontend("keyframe")
+                    rich.print(f"[bold blue]BackEnd  Optimize:[/bold blue] [{cur_frame_idx}]: fx: {self.viewpoints[cur_frame_idx].fx:.3f}, fy: {self.viewpoints[cur_frame_idx].fy:.3f}, kappa: {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id: {self.viewpoints[cur_frame_idx].calibration_identifier}, iter_per_kf: {iter_per_kf}\n")
+
+                    # update all cameras with the same calibration_identifier
+                    if self.calibration_optimizers is not None:
+                        fx = self.viewpoints[cur_frame_idx].fx
+                        fy = self.viewpoints[cur_frame_idx].fy
+                        kappa = self.viewpoints[cur_frame_idx].kappa
+                        for cam_id, viewpoint in self.viewpoints.items():
+                            if viewpoint.calibration_identifier == current_calibration_identifier:
+                                viewpoint.update_calibration(fx, fy, kappa)
+
                 else:
                     raise Exception("Unprocessed data", data)
+
+                        
+        # print final camera calibrations for debugging
+        print(f"\n\nCalibration results")
+        for cam_id, viewpoint in self.viewpoints.items():
+            print(f"cam_id: {cam_id}: \tcalib_id: {viewpoint.calibration_identifier}: fx = {viewpoint.fx:.3f}, fy = {viewpoint.fy:.3f}, kappa = {viewpoint.kappa:.6f}")
+
+
         while not self.backend_queue.empty():
             self.backend_queue.get()
         while not self.frontend_queue.empty():

@@ -14,14 +14,20 @@ from utils.multiprocessing_utils import clone_obj
 from utils.pose_utils import update_pose
 from utils.slam_utils import get_loss_tracking, get_median_depth
 
+from optimizers import CalibrationOptimizer
+from gaussian_scale_space import image_conv_gaussian_separable
 from utils.slam_frontend import FrontEnd
 from utils_cali.eval_cali_utils import eval_ate
 
 
+
 class FrontEndCali(FrontEnd):
+
     def __init__(self, config):
         super().__init__(config)
-    
+
+
+
     def run(self):
         cur_frame_idx = 0
         tic = torch.cuda.Event(enable_timing=True)
@@ -74,13 +80,14 @@ class FrontEndCali(FrontEnd):
                 )
                 viewpoint.compute_grad_mask(self.config)
 
-                # copy the last calibration to current viewpoint
+                # initialize calibration and pose to the previous camera
+                signal_calibration_change = False
                 if len(self.current_window):
-                    last_frame_idx = self.current_window[0]
-                    fx = self.cameras[last_frame_idx].fx
-                    fy = self.cameras[last_frame_idx].fy
-                    kappa = self.cameras[last_frame_idx].kappa
-                    self.updateCalibration (viewpoint, fx, fy, kappa)
+                    last_keyframe_idx = self.current_window[0]
+                    prev = self.cameras[last_keyframe_idx]
+                    viewpoint.update_calibration (prev.fx, prev.fy, prev.kappa)
+                    viewpoint.update_RT(prev.R, prev.T)
+                    signal_calibration_change = (viewpoint.calibration_identifier != prev.calibration_identifier)
 
                 self.cameras[cur_frame_idx] = viewpoint
 
@@ -94,8 +101,14 @@ class FrontEndCali(FrontEnd):
                     len(self.current_window) == self.window_size
                 )
 
-                # Tracking
+
+                # focal tracking
+                if self.require_calibration and self.initialized and signal_calibration_change:
+                    self.focal_tracking (cur_frame_idx, viewpoint, gaussian_scale_t = 1.0, max_iter_num = 100)
+
+                # pose tracking
                 render_pkg = self.tracking(cur_frame_idx, viewpoint)
+
 
                 current_window_dict = {}
                 current_window_dict[self.current_window[0]] = self.current_window[1:]
@@ -138,7 +151,7 @@ class FrontEndCali(FrontEnd):
                     )
                 if self.single_thread:
                     create_kf = check_time and create_kf
-                if create_kf:
+                if create_kf or signal_calibration_change:
                     self.current_window, removed = self.add_to_window(
                         cur_frame_idx,
                         curr_visibility,
@@ -160,6 +173,7 @@ class FrontEndCali(FrontEnd):
                     self.request_keyframe(
                         cur_frame_idx, viewpoint, self.current_window, depth_map
                     )
+                    print(f"\nKeyframe {cur_frame_idx} sent to backend:   fx = {viewpoint.fx:.3f}, fy = {viewpoint.fy:.3f}, kappa = {viewpoint.kappa:.6f}, calib_id = {viewpoint.calibration_identifier}")
                 else:
                     self.cleanup(cur_frame_idx)
                 cur_frame_idx += 1
@@ -201,3 +215,4 @@ class FrontEndCali(FrontEnd):
                     Log("Frontend Stopped.")
                     break
  
+
