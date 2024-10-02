@@ -149,7 +149,7 @@ class BackEnd(mp.Process):
         Log("Initialized map")
         return render_pkg
 
-    def map(self, current_window, prune=False, iters=1):
+    def map(self, current_window, prune=False, iters=1, calibrate=False):
         if len(current_window) == 0:
             return
         # print(f"slam_backend::map() current_window={current_window}, prune={prune}, iters={iters}")
@@ -314,9 +314,10 @@ class BackEnd(mp.Process):
 
                 # Calibration update. only do calibration if slam has been initialized.
                 # Here we assume a good focal initialization has been attained in frontend PnP module, by fixing 3D Gaussians and poses and then optimizing focal only
-                if self.require_calibration and self.initialized:
-                    if (self.calibration_optimizers is not None) and (not prune) and (not gaussian_split) and iters != 1:
-                        if iters >= 50:
+                # this function will perform prune, before doing Bundle adjustment. Thus it is not a good idea to perform calibration immediately
+                if calibrate and self.require_calibration and self.initialized:
+                    if (self.calibration_optimizers is not None) and (not prune) and (not gaussian_split):
+                        if iters >= 100:
                             lr = lr_exp_decay_helper(step=cur_itr, lr_init=0.01, lr_final=1e-4, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=iters)
                             self.calibration_optimizers.update_focal_learning_rate(lr = lr, scale = None)
                         self.calibration_optimizers.focal_step()
@@ -324,10 +325,6 @@ class BackEnd(mp.Process):
                             self.calibration_optimizers.kappa_step()
                 if self.calibration_optimizers is not None:
                     self.calibration_optimizers.zero_grad(set_to_none=True)
-                    # In the 1st iteration of Adam, always the update = lr, irregardless of the gradient magnitude. Here 0.01 means 1% of focal chagne.
-                    # don't update pose and 3D gaussian in this "warming up" stage.
-                    if cur_itr < 5:
-                        continue
 
 
                 # Pose update
@@ -534,12 +531,12 @@ class BackEnd(mp.Process):
                     current_calibration_identifier = self.viewpoints[cur_frame_idx].calibration_identifier
                     calibration_identifier_cnt = 0
 
-                    print(f"backend received keyframe {cur_frame_idx}:  fx = {self.viewpoints[cur_frame_idx].fx:.3f}, fy = {self.viewpoints[cur_frame_idx].fy:.3f}, kappa = {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id = {viewpoint.calibration_identifier}")
+                    print(f"backend received keyframe {cur_frame_idx}:  fx = {viewpoint.fx:.3f}, fy = {viewpoint.fy:.3f}, kappa = {viewpoint.kappa:.6f}, calib_id = {viewpoint.calibration_identifier}")
 
                     pose_opt_params = []
                     calib_opt_frames_stack = []
                     frames_to_optimize = self.config["Training"]["pose_window"]
-                    iter_per_kf = self.mapping_itr_num if self.single_thread else 49
+                    iter_per_kf = self.mapping_itr_num if self.single_thread else 10
                     if not self.initialized:
                         if (
                             len(self.current_window)
@@ -596,9 +593,7 @@ class BackEnd(mp.Process):
                     self.keyframe_optimizers.zero_grad()
 
                     
-                    self.require_calibration = True if cur_frame_idx > 100 else False
-
-                    if self.require_calibration and self.initialized and calibration_identifier_cnt >= 2:
+                    if self.require_calibration and self.initialized and calibration_identifier_cnt >= 2 and current_calibration_identifier != 0:
                         # self.viewpoint_refinement(self.current_window, iters=50)
                         H = viewpoint.image_height
                         W = viewpoint.image_width
@@ -613,6 +608,8 @@ class BackEnd(mp.Process):
                     
                     self.map(self.current_window, iters=iter_per_kf)
                     self.map(self.current_window, prune=True)
+                    if self.calibration_optimizers is not None:
+                        self.map(self.current_window, calibrate=True, iters=iter_per_kf)
                     self.push_to_frontend("keyframe")
                     rich.print(f"[bold blue]backend optimized keyframe[/bold blue] {cur_frame_idx}: fx = {self.viewpoints[cur_frame_idx].fx:.3f}, fy = {self.viewpoints[cur_frame_idx].fy:.3f}, kappa = {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id = {self.viewpoints[cur_frame_idx].calibration_identifier}, iter_per_kf = {iter_per_kf}")
 
