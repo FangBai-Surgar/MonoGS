@@ -1,0 +1,340 @@
+{
+	"folders": [
+		{
+			"name": "MonoGS_dev",
+			"path": "/workspaces/src/MonoGS_dev"
+		},
+		{
+			"name": "openglcontext",
+			"path": "/workspaces/src/openglcontext"
+		},
+		{
+			"name": "python-opengl-tutorial",
+			"path": "/workspaces/src/python-opengl-tutorial"
+		},
+		{
+			"name": "Replica-Dataset",
+			"path": "/workspaces/src/Replica-Dataset"
+		}
+		// {
+		// 	"name": "gtsam",
+		// 	"path": "/workspaces/src/gtsam"
+		// },
+		// {
+		// 	"name": "gaussian-splatting",
+		// 	"path": "/workspaces/src/gaussian-splatting"
+		// },
+		// {
+		// 	"name": "diff-gaussian-rasterization-pose-calib-main",
+		// 	"path": "/workspaces/src/diff-gaussian-rasterization-pose-calib-main"
+		// }
+	],
+	"settings": {
+		"python.analysis.extraPaths": [
+			"/opt/ros/humble/lib/python3.10/site-packages ",
+		],
+		"files.associations": {
+			"iosfwd": "cpp",
+			"cctype": "cpp",
+			"cmath": "cpp",
+			"cstdarg": "cpp",
+			"cstddef": "cpp",
+			"cstdio": "cpp",
+			"cstdlib": "cpp",
+			"cstring": "cpp",
+			"ctime": "cpp",
+			"cwchar": "cpp",
+			"cwctype": "cpp",
+			"atomic": "cpp",
+			"bit": "cpp",
+			"*.tcc": "cpp",
+			"bitset": "cpp",
+			"compare": "cpp",
+			"concepts": "cpp",
+			"cstdint": "cpp",
+			"exception": "cpp",
+			"algorithm": "cpp",
+			"functional": "cpp",
+			"iterator": "cpp",
+			"memory": "cpp",
+			"optional": "cpp",
+			"random": "cpp",
+			"ratio": "cpp",
+			"string": "cpp",
+			"string_view": "cpp",
+			"system_error": "cpp",
+			"tuple": "cpp",
+			"type_traits": "cpp",
+			"utility": "cpp",
+			"initializer_list": "cpp",
+			"iostream": "cpp",
+			"istream": "cpp",
+			"limits": "cpp",
+			"mutex": "cpp",
+			"new": "cpp",
+			"ostream": "cpp",
+			"stdexcept": "cpp",
+			"streambuf": "cpp",
+			"cinttypes": "cpp",
+			"typeinfo": "cpp",
+			"variant": "cpp",
+			"__locale": "cpp",
+			"__threading_support": "cpp",
+			"__verbose_abort": "cpp",
+			"array": "cpp",
+			"execution": "cpp",
+			"ios": "cpp",
+			"locale": "cpp",
+			"print": "cpp",
+			"any": "cpp",
+			"chrono": "cpp",
+			"fstream": "cpp",
+			"deque": "cpp",
+			"forward_list": "cpp",
+			"list": "cpp",
+			"unordered_map": "cpp",
+			"unordered_set": "cpp",
+			"vector": "cpp",
+			"ranges": "cpp",
+			"span": "cpp",
+			"regex": "cpp",
+			"valarray": "cpp",
+			"__bit_reference": "cpp",
+			"__hash_table": "cpp",
+			"__split_buffer": "cpp",
+			"__tree": "cpp",
+			"map": "cpp",
+			"set": "cpp"
+		},
+	},
+	"tasks": {
+		"version": "2.0.0",
+		"inputs": [
+			{
+				"id": "build_type",
+				"type": "pickString",
+				"description": "Build type",
+				"options": [
+					"Release",
+					"Debug"
+				],
+				"default": "Release"
+			},
+			{
+				"id": "launch_prefix",
+				"type": "pickString",
+				"description": "Launch prefix",
+				"options": [
+					"xterm -e gdb -ex run --args ",
+					"gdb -ex run --args ",
+					"gdb --args ",
+					"./"
+				],
+				"default": "./"
+			},
+			{
+				"id": "dataset_input",
+				"type": "pickString",
+				"description": "dataset input",
+				"options": [
+					"tandt_db/tandt/train -m ./output/tandt/train",
+					"tandt_db/tandt/truck -m ./output/tandt/truck",
+					"tandt_db/db/drjohnson -m ./output/db/drjohnson",
+					"tandt_db/db/playroom -m ./output/db/playroom",
+				],
+				"default": "tandt_db/tandt/train -m ./output/tandt",
+			},
+			{
+				"id": "model_input",
+				"type": "pickString",
+				"description": "model input",
+				"options": [
+					"./output/tandt/train",
+					"./output/tandt/truck",
+					"./output/db/drjohnson",
+					"./output/db/playroom",
+				],
+				"default": "./output/tandt/train",
+			},
+			{
+				"id": "eval_or_not",
+				"type": "pickString",
+				"description": "eval or not",
+				"options": [
+					"--eval",
+					"",
+				],
+				"default": "--eval",				
+			},
+			{
+				"id": "config_file",
+				"type": "pickString",
+				"description": "config file",
+				"options": [
+					"configs/mono/simulated/seq1.yaml",
+					"configs/mono/simulated/seq2.yaml",
+					"configs/mono/simulated/seq67.yaml",
+					"configs/mono/simulated/seq4567.yaml",
+					"configs/mono/tum/fr3_office.yaml",
+					"configs/rgbd/replica/office0.yaml",
+					"configs/rgbd/replica/office0_sp.yaml",
+					"configs/stereo/euroc/mh02.yaml",
+					"configs/live/realsense.yaml",
+				],
+				"default": "configs/mono/simulated/seq4567.yaml",
+			},
+			{
+				"id": "require_calibration",
+				"type": "pickString",
+				"description": "require calibration",
+				"options": [
+					"--require_calibration",
+					"",
+				],
+				"default": "--require_calibration",
+			},
+			{
+				"id": "allow_lens_distortion",
+				"type": "pickString",
+				"description": "allow lens distortion",
+				"options": [
+					"--allow_lens_distortion",
+					"",
+				],
+				"default": "--allow_lens_distortion",
+			}
+		],
+		"tasks": [
+			{
+				"label": "update workspace",
+				"type": "shell",
+				"command": "vcs import /workspaces/src < /workspaces/src/hyperion_dev/.devcontainer/hyper.repos"
+			},
+			{
+				"label": "build gtsam selfCalibration",
+				"type": "shell",
+				// "command": "source /opt/ros/humble/setup.zsh && cd /workspaces/src/gtsam && mkdir -p build && cd build && cmake .. -DGTSAM_BUILD_WITH_MARCH_NATIVE=ON -DGTSAM_USE_SYSTEM_EIGEN=ON -DCMAKE_BUILD_TYPE=Release && make check && sudo make -j8 install",
+				"command": "source /opt/ros/humble/setup.zsh && cd /workspaces/src/gtsam && mkdir -p build && cd build && cmake .. -DGTSAM_POSE3_EXPMAP=ON -DGTSAM_ROT3_EXPMAP=ON -DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF -DGTSAM_WITH_TBB=OFF -DCMAKE_BUILD_TYPE=Release && make check && sudo make -j8 install",
+				"problemMatcher": [
+					"$gcc"
+				],
+				"dependsOn": [],
+				"dependsOrder": "parallel",
+				"group": {
+					"kind": "build",
+					"isDefault": true
+				} //ctrl + shift + B
+			},
+			{
+				"label": "build gaussian-splatting",
+				"type": "shell",
+				"command": "cd /workspaces/src/gaussian-splatting && pip install submodules/simple-knn && pip install submodules/diff-gaussian-rasterization && pip install plyfile tqdm && cd SIBR_viewers && cmake -Bbuild . -DCMAKE_BUILD_TYPE=Release && cmake --build build -j24 --target install",
+				"problemMatcher": [
+					"$gcc"
+				],
+				"dependsOn": [],
+				"dependsOrder": "parallel",
+				"group": {
+					"kind": "build",
+					"isDefault": true
+				} //ctrl + shift + B
+			},
+			{
+				"label": "build colmap",
+				"type": "shell",
+				"command": "cd /workspaces/src/colmap && mkdir -p build && cd build && cmake .. -GNinja && ninja && sudo ninja install",
+			},
+			{
+				"label": "build diff-gaussian-rasterization-pose-calib-main",
+				"type": "shell",
+				"command": "cd /workspaces/src/diff-gaussian-rasterization-pose-calib-main && mkdir -p build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && make -j8",
+			},
+			{
+				"label": "train GP",
+				"type": "shell",
+				"command": "zsh",
+				"args": [
+					"-c",
+					"source activate base && cd /workspaces/src/gaussian-splatting && python train.py -s /workspaces/src/MonoGS_dev/datasets/${input:dataset_input} ${input:eval_or_not}",
+				]
+			},
+			{
+				"label": "rendering GP",
+				"type": "shell",
+				"command": "zsh",
+				"args": [
+					"-c",
+					"source activate base && cd /workspaces/src/gaussian-splatting && python render.py -s /workspaces/src/MonoGS_dev/datasets/${input:dataset_input}",
+				]
+			},
+			{
+				"label": "matrix GP",
+				"type": "shell",
+				"command": "zsh",
+				"args": [
+					"-c",
+					"source activate base && cd /workspaces/src/gaussian-splatting && python metrics.py -m ${input:model_input}",
+				]
+			},
+			{
+				"label": "run sfm",
+				"type": "shell",
+				"command": "zsh",
+				"args": [
+					"-c",
+					"source activate MonoGS && cd /workspaces/src/MonoGS_dev && python sfm.py -s /datasets/${input:dataset_input} ${input:eval_or_not}",
+				]
+			},
+			{
+				"label": "run sfm_old",
+				"type": "shell",
+				"command": "zsh",
+				"args": [
+					"-c",
+					"source activate MonoGS && cd /workspaces/src/MonoGS_dev && python sfm_old.py -s /datasets/${input:dataset_input} ${input:eval_or_not}",
+				]
+			},
+			{
+				"label": "run train in MonoGS_dev",
+				"type": "shell",
+				"command": "zsh",
+				"args": [
+					"-c",
+					"source activate MonoGS && cd /workspaces/src/MonoGS_dev && python train.py -s /datasets/${input:dataset_input} ${input:eval_or_not}",
+				]
+			},
+			{
+				"label": "run MonoGS_dev slam",
+				"type": "shell",
+				"command": "zsh",
+				"args": [
+					"-c",
+					"source activate MonoGS && cd /workspaces/src/MonoGS_dev && python slam_cali.py --config ${input:config_file} ${input:eval_or_not} ${input:require_calibration} ${input:allow_lens_distortion}",
+				]
+			},
+			{
+				"label": "MonoGS_dev setup",
+				"type": "shell",
+				"command": "zsh",
+				"args": [
+					"-c",
+					"cd /workspaces/src/MonoGS_dev && conda env create -f environment.yml",
+				]
+			},
+			{
+				"label": "slam experiments",
+				"type": "shell",
+				"command": "zsh",
+				"args": [
+					"-c",
+					"source activate MonoGS && cd /workspaces/src/MonoGS_dev && python slam_experiments.py --config ${input:config_file} ${input:eval_or_not}",
+				]
+			},
+			{
+				"label": "install gtsam from ppa",
+				"type": "shell",
+				"command": "sudo add-apt-repository ppa:borglab/gtsam-release-4.0 -y && sudo apt-get update && sudo apt-get install libgtsam-dev libgtsam-unstable-dev",
+			}
+		]
+	}
+}

@@ -1,0 +1,75 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
+{
+	"name": "mono_gs_self_calibration_experiment_dev",
+	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+	// set dockerfile and set build args
+	"build": {
+		"dockerfile": "Dockerfile",
+		"args": {
+			"USERNAME": "${localEnv:USERNAME}",
+		}
+	},
+	"workspaceMount": "source=${localWorkspaceFolder}/../../,target=/workspaces/,type=bind,consistency=cached",
+	"workspaceFolder": "/workspaces/src/MonoGS_dev",
+	// Features to add to the dev container. More info: https://containers.dev/features.
+	"features": {
+		"ghcr.io/devcontainers-community/features/llvm": {},
+		"ghcr.io/devcontainers/features/python": {},
+		"ghcr.io/devcontainers-contrib/features/zsh-plugins": {
+			"omzPlugins": [
+				"zsh-autosuggestions",
+				"zsh-syntax-highlighting",
+				"zsh-completions",
+				"zsh-history-substring-search"
+			],
+		},
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"llvm-vs-code-extensions.vscode-clangd",
+				"ms-python.black-formatter",
+				"ms-python.isort",
+				"Gruntfuggly.todo-tree",
+				"ms-vscode.cpptools",
+				"ms-toolsai.jupyter",
+				"tintinweb.graphviz-interactive-preview",
+				"redhat.vscode-xml",
+				"eamodio.gitlens",
+				"spmeesseman.vscode-taskexplorer",
+				"mhutchie.git-graph",
+				"cschlosser.doxdocgen"
+			],
+			"settings": {
+				"terminal.integrated.defaultProfile.linux": "zsh" // Set zsh as default terminal
+			},
+		}
+	},
+	"runArgs": [
+		"--name",
+		"mono_gs_self_calibration_experiment_dev",
+		"--user=${localEnv:USERNAME}",
+		"--gpus=all",
+		"-e", "DISPLAY=${localEnv:DISPLAY}",
+		"-v", "/tmp/.X11-unix:/tmp/.X11-unix",
+		"-v", "/dev:/dev",
+		"-v", "${localEnv:HOME}/workspaces/datasets:/datasets",
+		"--privileged",
+		"--device-cgroup-rule",
+		"c 81:* rmw",
+		"--device-cgroup-rule",
+		"c 189:* rmw"
+	],
+	"remoteEnv": {
+		"DISPLAY": "${localEnv:DISPLAY}",
+		"QT_X11_NO_MITSHM": "1",
+		// "CC": "/usr/bin/clang",
+		// "CXX": "/usr/bin/clang++"
+		"PYTHONPATH": "/workspaces/src/symforce:/workspaces/src/symforce/build/lcmtypes/python2.7",
+		"LD_LIBRARY_PATH": "/usr/local/lib"
+	},
+	"remoteUser": "${localEnv:USERNAME}",
+	"postCreateCommand": "Xvfb :99 -screen 0 1024x768x16 & sudo cp /root/.zshrc ${HOME} && sudo cp -r /root/.oh-my-zsh ${HOME} && sudo chown -R ${localEnv:USERNAME} ${HOME}/.zshrc ${HOME}/.oh-my-zsh && conda init zsh"
+
+}

@@ -1,0 +1,12 @@
+repositories:
+  MonoGS:
+    type: git
+    url: git@github.com:FangBai-Surgar/MonoGS.git
+    version: origin/StructureFromMotion
+  gtsam:
+    type: git
+    url: git@github.com:FangBai-Surgar/gtsam.git
+    version: selfCalibration
+  salt-rip: not found
+  git clone https://github.com/colmap/colmap.git
+  git clone git@github.com:graphdeco-inria/gaussian-splatting.git --recursivecd
