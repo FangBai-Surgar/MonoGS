@@ -79,7 +79,7 @@ class CalibrationOptimizer:
                 num_views = len(cam_stack)
                 if calib_id > self.current_calib_id and num_views >= 1:
                     self.current_calib_id = calib_id
-        print(f"self.current_calib_id = {self.current_calib_id}")
+        # print(f"self.current_calib_id = {self.current_calib_id}")
 
 
 

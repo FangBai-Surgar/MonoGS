@@ -401,16 +401,16 @@ class FrontEnd(mp.Process):
                         focal_ref = 400
                     elif cur_frame_idx >= 200 and cur_frame_idx < 300:
                         viewpoint.calibration_identifier = 2
-                        focal_ref = 300
+                        focal_ref = 350
                     elif cur_frame_idx >= 300 and cur_frame_idx < 400:
                         viewpoint.calibration_identifier = 3
                         focal_ref = 700
                     elif cur_frame_idx >= 400 and cur_frame_idx < 500:
                         viewpoint.calibration_identifier = 4
-                        focal_ref = 800
+                        focal_ref = 900
                     elif cur_frame_idx >= 500 and cur_frame_idx < 600:
                         viewpoint.calibration_identifier = 5
-                        focal_ref = 900
+                        focal_ref = 200
                     else:
                         viewpoint.calibration_identifier = 0
 
@@ -443,10 +443,10 @@ class FrontEnd(mp.Process):
                     len(self.current_window) == self.window_size
                 )
 
-
                 # use the pose from the neartest frame
                 if self.require_calibration and self.initialized and signal_calibration_change:
-                    self.init_focal (viewpoint, gaussian_scale_t = 5.0, learning_rate = 0.1, max_iter_num = 20)
+                    self.init_focal (viewpoint, gaussian_scale_t = 10.0, learning_rate = 0.1, max_iter_num = 20)
+                    # self.init_focal (viewpoint, gaussian_scale_t = 5.0, learning_rate = 0.05, max_iter_num = 10)
                     self.init_focal (viewpoint, gaussian_scale_t = 1.0, learning_rate = 0.01, max_iter_num = 50)
 
                 render_pkg = self.tracking(cur_frame_idx, viewpoint)
@@ -519,7 +519,7 @@ class FrontEnd(mp.Process):
                     self.request_keyframe(
                         cur_frame_idx, viewpoint, self.current_window, depth_map
                     )
-                    print(f"\nKeyframe {cur_frame_idx} sent to backend:   fx = {viewpoint.fx:.3f}, fy = {viewpoint.fy:.3f}, kappa = {viewpoint.kappa:.6f}, calib_id = {viewpoint.calibration_identifier}")
+                    rich.print(f"[bold blue]FrontEnd Sent    :[/bold blue] [{cur_frame_idx}]: fx = {viewpoint.fx:.3f}, fy = {viewpoint.fy:.3f}, kappa = {viewpoint.kappa:.6f}, calib_id = {viewpoint.calibration_identifier}")
                 else:
                     self.cleanup(cur_frame_idx)
                 cur_frame_idx += 1

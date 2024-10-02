@@ -531,7 +531,7 @@ class BackEnd(mp.Process):
                     current_calibration_identifier = self.viewpoints[cur_frame_idx].calibration_identifier
                     calibration_identifier_cnt = 0
 
-                    print(f"backend received keyframe {cur_frame_idx}:  fx = {viewpoint.fx:.3f}, fy = {viewpoint.fy:.3f}, kappa = {viewpoint.kappa:.6f}, calib_id = {viewpoint.calibration_identifier}")
+                    rich.print(f"[bold blue]BackEnd  Receive :[/bold blue] [{cur_frame_idx}]: fx = {viewpoint.fx:.3f}, fy = {viewpoint.fy:.3f}, kappa = {viewpoint.kappa:.6f}, calib_id = {viewpoint.calibration_identifier}")
 
                     pose_opt_params = []
                     calib_opt_frames_stack = []
@@ -598,20 +598,25 @@ class BackEnd(mp.Process):
                         H = viewpoint.image_height
                         W = viewpoint.image_width
                         focal_ref = np.sqrt(H*H + W*W)/2
+                        rich.print("[bold green]calibration optimizer[/bold green]. current_window: ", current_window)    
                         self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack, focal_ref)
                         self.calibration_optimizers.maximum_newton_steps = 0 # diable newton update
                         self.calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
-                        self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)
-                        print(f"calibration optimizer. current_window [kf_idx]: {current_window}, focal_ref: {focal_ref:0.3f}")                        
+                        self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)                  
                     else:
                         self.calibration_optimizers = None
-                    
-                    self.map(self.current_window, iters=iter_per_kf)
-                    self.map(self.current_window, prune=True)
+
+                    iters = int(iter_per_kf/2) if self.calibration_optimizers is not None else iter_per_kf
+
+                    ### The order of following three matters a lot! ###
                     if self.calibration_optimizers is not None:
-                        self.map(self.current_window, calibrate=True, iters=iter_per_kf)
+                        self.map(self.current_window, calibrate=True, iters=iters)
+                    self.map(self.current_window, prune=True)
+                    self.map(self.current_window, iters=iters)
+
+
                     self.push_to_frontend("keyframe")
-                    rich.print(f"[bold blue]backend optimized keyframe[/bold blue] {cur_frame_idx}: fx = {self.viewpoints[cur_frame_idx].fx:.3f}, fy = {self.viewpoints[cur_frame_idx].fy:.3f}, kappa = {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id = {self.viewpoints[cur_frame_idx].calibration_identifier}, iter_per_kf = {iter_per_kf}")
+                    rich.print(f"[bold blue]BackEnd  Optimize:[/bold blue] [{cur_frame_idx}]: fx = {self.viewpoints[cur_frame_idx].fx:.3f}, fy = {self.viewpoints[cur_frame_idx].fy:.3f}, kappa = {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id = {self.viewpoints[cur_frame_idx].calibration_identifier}, iter_per_kf = {iter_per_kf}")
 
                     # update all cameras with the same calibration_identifier
                     if self.calibration_optimizers is not None:
