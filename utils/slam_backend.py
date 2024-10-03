@@ -409,7 +409,7 @@ class BackEnd(mp.Process):
                 if self.last_sent >= 10:
                     self.map(self.current_window, prune=True, calibrate=True, iters=10)
                     self.push_to_frontend()
-                    rich.print("[bold green]Backend : no data from front-end, continue optimizing existing data [/bold green]")
+                    rich.print("[bold yellow]Backend : no data from front-end, continue optimizing existing data [/bold yellow]")
             else:
                 data = self.backend_queue.get()
                 if data[0] == "stop":

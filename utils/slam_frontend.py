@@ -448,7 +448,7 @@ class FrontEnd(mp.Process):
                 # use the pose from the neartest frame
                 if self.require_calibration and self.initialized and signal_calibration_change:
                     self.init_focal (viewpoint, gaussian_scale_t = 10.0,  beta = 1.0, learning_rate = 0.1, max_iter_num = 20)
-                    self.init_focal (viewpoint, gaussian_scale_t = 0.0,  beta = 0.0, learning_rate = 0.01, max_iter_num = 30)
+                    self.init_focal (viewpoint, gaussian_scale_t = 0.0,  beta = 0.0, learning_rate = 0.01, max_iter_num = 50)
 
                 render_pkg = self.tracking(cur_frame_idx, viewpoint)
 
