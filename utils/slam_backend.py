@@ -149,7 +149,7 @@ class BackEnd(mp.Process):
         Log("Initialized map")
         return render_pkg
 
-    def map(self, current_window, prune=False, iters=1, calibrate=False):
+    def map(self, current_window, prune=False, calibrate=False, iters=1):
         if len(current_window) == 0:
             return
         # print(f"slam_backend::map() current_window={current_window}, prune={prune}, iters={iters}")
@@ -407,8 +407,9 @@ class BackEnd(mp.Process):
                     continue
                 self.map(self.current_window)
                 if self.last_sent >= 10:
-                    self.map(self.current_window, prune=True, iters=10)
+                    self.map(self.current_window, prune=True, calibrate=True, iters=10)
                     self.push_to_frontend()
+                    rich.print("[bold yellow]Backend : no data from front-end, continue optimizing existing data [/bold yellow]")
             else:
                 data = self.backend_queue.get()
                 if data[0] == "stop":
@@ -433,6 +434,10 @@ class BackEnd(mp.Process):
                     )
                     self.initialize_map(cur_frame_idx, viewpoint)
                     self.push_to_frontend("init")
+
+                elif data[0] == "calibration_change":
+                    self.map(self.current_window, prune=False, calibrate=False, iters=20)
+                    rich.print("[bold red]Backend : calibration change signal recieved [/bold red]")
 
                 elif data[0] == "keyframe":
                     cur_frame_idx = data[1]
@@ -525,14 +530,10 @@ class BackEnd(mp.Process):
                     iters = int(iter_per_kf/2) if self.calibration_optimizers is not None else iter_per_kf
 
                     ### The order of following three matters a lot! ###
+                    self.map(self.current_window, iters=iters)
                     if self.calibration_optimizers is not None:
                         self.map(self.current_window, calibrate=True, iters=iters)
                     self.map(self.current_window, prune=True)
-                    self.map(self.current_window, iters=iters)
-
-
-                    self.push_to_frontend("keyframe")
-                    rich.print(f"[bold blue]BackEnd  Optimize:[/bold blue] [{cur_frame_idx}]: fx: {self.viewpoints[cur_frame_idx].fx:.3f}, fy: {self.viewpoints[cur_frame_idx].fy:.3f}, kappa: {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id: {self.viewpoints[cur_frame_idx].calibration_identifier}, iter_per_kf: {iter_per_kf}\n")
 
                     # update all cameras with the same calibration_identifier
                     if self.calibration_optimizers is not None:
@@ -542,6 +543,9 @@ class BackEnd(mp.Process):
                         for cam_id, viewpoint in self.viewpoints.items():
                             if viewpoint.calibration_identifier == current_calibration_identifier:
                                 viewpoint.update_calibration(fx, fy, kappa)
+                    
+                    rich.print(f"[bold blue]BackEnd  Optimize:[/bold blue] [{cur_frame_idx}]: fx: {self.viewpoints[cur_frame_idx].fx:.3f}, fy: {self.viewpoints[cur_frame_idx].fy:.3f}, kappa: {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id: {self.viewpoints[cur_frame_idx].calibration_identifier}, iter_per_kf: {iter_per_kf}\n")
+                    self.push_to_frontend("keyframe")                    
 
                 else:
                     raise Exception("Unprocessed data", data)

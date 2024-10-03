@@ -224,7 +224,6 @@ class FrontEnd(mp.Process):
         dist = torch.norm((pose_CW @ last_kf_WC)[0:3, 3])
         dist_check = dist > kf_translation * self.median_depth
         dist_check2 = dist > kf_min_translation * self.median_depth
-
         union = torch.logical_or(
             cur_frame_visibility_filter, occ_aware_visibility[last_keyframe_idx]
         ).count_nonzero()
@@ -411,6 +410,8 @@ class FrontEnd(mp.Process):
                         focal_ref = 200
                     else:
                         viewpoint.calibration_identifier = 0
+                        focal_ref = None
+                        
 
 
                 signal_calibration_change = False
@@ -420,7 +421,10 @@ class FrontEnd(mp.Process):
                     viewpoint.update_RT(prev.R, prev.T) # use last frame pose
                     if viewpoint.calibration_identifier != prev.calibration_identifier:
                         signal_calibration_change = True
+                        self.backend_queue.put(["calibration_change"])
                         rich.print(f"\n[bold red]FrontEnd: calibration change detected at frame_idx: [/bold red]{cur_frame_idx}")
+                        if focal_ref is not None:
+                            rich.print(f"[bold magenta]At Frame {viewpoint.uid}, change focal length (fx) to: [/bold magenta] {focal_ref} ")
 
 
                 ###### test code block
@@ -443,14 +447,10 @@ class FrontEnd(mp.Process):
 
                 # use the pose from the neartest frame
                 if self.require_calibration and self.initialized and signal_calibration_change:
-                    self.init_focal (viewpoint, gaussian_scale_t = 10.0, learning_rate = 0.1, max_iter_num = 20)
-                    self.init_focal (viewpoint, gaussian_scale_t = 5.0, learning_rate = 0.01, max_iter_num = 50)
+                    self.init_focal (viewpoint, gaussian_scale_t = 10.0,  beta = 1.0, learning_rate = 0.1, max_iter_num = 20)
+                    self.init_focal (viewpoint, gaussian_scale_t = 0.0,  beta = 0.0, learning_rate = 0.01, max_iter_num = 50)
 
                 render_pkg = self.tracking(cur_frame_idx, viewpoint)
-
-                # pose and focal length intialization from given 3D structure.
-                # if self.require_calibration and self.initialized and signal_calibration_change:
-                #     render_pkg = self.tracking_calib (cur_frame_idx, viewpoint, learning_rate = 0.005, max_iter_num = self.tracking_itr_num)
 
 
                 current_window_dict = {}
@@ -563,7 +563,7 @@ class FrontEnd(mp.Process):
 
 
     
-    def init_focal (self, viewpoint, gaussian_scale_t = 5.0, learning_rate = 0.1, max_iter_num = 20):
+    def init_focal (self, viewpoint, gaussian_scale_t = 5.0, beta = 1.0, learning_rate = 0.1, max_iter_num = 20):
 
         viewpoint_stack = []
         viewpoint_stack.append(viewpoint)
@@ -612,7 +612,7 @@ class FrontEnd(mp.Process):
                 image_scale_t = image
                 gt_image_scale_t = gt_image
 
-            huber_loss_function = torch.nn.SmoothL1Loss(reduction = 'mean', beta = 1.0)
+            huber_loss_function = torch.nn.SmoothL1Loss(reduction = 'mean', beta = beta) # beta = 0, this becomes l1 loss
             loss = huber_loss_function(image_scale_t*mask, gt_image_scale_t*mask)
             loss.backward()     
 
@@ -621,110 +621,6 @@ class FrontEnd(mp.Process):
                 calibration_optimizers.zero_grad()            
             if converged:
                 break
-
-
-
-    
-    def tracking_calib (self, cur_frame_idx, viewpoint, learning_rate = 0.005, max_iter_num = 100):
-
-        rich.print(f"\n[bold red]slam_frontend::tracking_calib() cur_frame_idx={cur_frame_idx}, uid={viewpoint.uid}[/bold red]")
-        rich.print(f"[BEGIND]\n  R: {viewpoint.R}, \n  T = {viewpoint.T}\n  fx: {viewpoint.fx}, fy: {viewpoint.fy}, kappa: {viewpoint.kappa}")
-
-        viewpoint_stack = []
-        viewpoint_stack.append(viewpoint)
-
-        H = viewpoint.image_height
-        W = viewpoint.image_width
-        focal_ref = np.sqrt(H*H + W*W)/2
-
-        calibration_optimizer = CalibrationOptimizer(viewpoint_stack, focal_ref) # only one view
-        calibration_optimizer.maximum_newton_steps = 0 # diable newton update
-        calibration_optimizer.num_line_elements = 0 # diasable saving sample points for line fitting
-        calibration_optimizer.update_focal_learning_rate(lr = learning_rate)
-
-
-        opt_params = []
-        opt_params.append(
-            {
-                "params": [viewpoint.cam_rot_delta],
-                "lr": self.config["Training"]["lr"]["cam_rot_delta"],
-                "name": "rot_{}".format(viewpoint.uid),
-            }
-        )
-        opt_params.append(
-            {
-                "params": [viewpoint.cam_trans_delta],
-                "lr": self.config["Training"]["lr"]["cam_trans_delta"],
-                "name": "trans_{}".format(viewpoint.uid),
-            }
-        )
-        opt_params.append(
-            {
-                "params": [viewpoint.exposure_a],
-                "lr": 0.01,
-                "name": "exposure_a_{}".format(viewpoint.uid),
-            }
-        )
-        opt_params.append(
-            {
-                "params": [viewpoint.exposure_b],
-                "lr": 0.01,
-                "name": "exposure_b_{}".format(viewpoint.uid),
-            }
-        )
-
-        pose_optimizer = torch.optim.Adam(opt_params)
-
-
-        for tracking_itr in range(self.tracking_itr_num):
-
-            pose_warm_up = False and (tracking_itr > 2 and tracking_itr <= 5)
-            focal_warm_up = False and (tracking_itr <= 2)
-
-            if tracking_itr % 5 == 0:
-                self.q_main2vis.put(
-                    gui_utils.GaussianPacket(
-                        current_frame=viewpoint,
-                        gtcolor=viewpoint.original_image,
-                        gtdepth=viewpoint.depth
-                        if not self.monocular
-                        else np.zeros((viewpoint.image_height, viewpoint.image_width)),
-                    )
-                )
-
-            render_pkg = render(
-                viewpoint, self.gaussians, self.pipeline_params, self.background
-            )
-            image, depth, opacity = (
-                render_pkg["render"],
-                render_pkg["depth"],
-                render_pkg["opacity"],
-            )
-            pose_optimizer.zero_grad()
-            loss_tracking = get_loss_tracking(
-                self.config, image, depth, opacity, viewpoint
-            )
-            loss_tracking.backward()
-
-            converged = False
-
-            with torch.no_grad():
-                if not pose_warm_up:
-                    calibration_optimizer.focal_step()
-                if not focal_warm_up:
-                    pose_optimizer.step()
-                    converged = update_pose(viewpoint)
-                calibration_optimizer.zero_grad()
-                pose_optimizer.zero_grad()
-
-            if converged:
-                break
-
-        rich.print(f"[END] in {tracking_itr} iters\n  R: {viewpoint.R}, \n  T = {viewpoint.T}\n  fx: {viewpoint.fx}, fy: {viewpoint.fy}, kappa: {viewpoint.kappa}")
-
-        self.median_depth = get_median_depth(depth, opacity)
-
-        return render_pkg
     
     
 
