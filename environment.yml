@@ -29,10 +29,6 @@ dependencies:
     - lpips
     - rich
     - ruff
-    - gradio_imageslider
-    - gradio==4.14.0
-    - huggingface_hub
     - pycolmap
-    - opencv-python
-    - opencv-contrib-python
-    - rerun-sdk
+    - OpenEXR
+
