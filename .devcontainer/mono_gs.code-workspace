@@ -171,6 +171,7 @@
 				"type": "pickString",
 				"description": "config file",
 				"options": [
+					"configs/mono/replica/office0_cali.yaml",
 					"configs/mono/simulated/seq1.yaml",
 					"configs/mono/simulated/seq2.yaml",
 					"configs/mono/simulated/seq67.yaml",
