@@ -525,14 +525,10 @@ class BackEnd(mp.Process):
                     iters = int(iter_per_kf/2) if self.calibration_optimizers is not None else iter_per_kf
 
                     ### The order of following three matters a lot! ###
+                    self.map(self.current_window, iters=iters)
                     if self.calibration_optimizers is not None:
                         self.map(self.current_window, calibrate=True, iters=iters)
                     self.map(self.current_window, prune=True)
-                    self.map(self.current_window, iters=iters)
-
-
-                    self.push_to_frontend("keyframe")
-                    rich.print(f"[bold blue]BackEnd  Optimize:[/bold blue] [{cur_frame_idx}]: fx: {self.viewpoints[cur_frame_idx].fx:.3f}, fy: {self.viewpoints[cur_frame_idx].fy:.3f}, kappa: {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id: {self.viewpoints[cur_frame_idx].calibration_identifier}, iter_per_kf: {iter_per_kf}\n")
 
                     # update all cameras with the same calibration_identifier
                     if self.calibration_optimizers is not None:
@@ -542,6 +538,9 @@ class BackEnd(mp.Process):
                         for cam_id, viewpoint in self.viewpoints.items():
                             if viewpoint.calibration_identifier == current_calibration_identifier:
                                 viewpoint.update_calibration(fx, fy, kappa)
+                    
+                    rich.print(f"[bold blue]BackEnd  Optimize:[/bold blue] [{cur_frame_idx}]: fx: {self.viewpoints[cur_frame_idx].fx:.3f}, fy: {self.viewpoints[cur_frame_idx].fy:.3f}, kappa: {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id: {self.viewpoints[cur_frame_idx].calibration_identifier}, iter_per_kf: {iter_per_kf}\n")
+                    self.push_to_frontend("keyframe")                    
 
                 else:
                     raise Exception("Unprocessed data", data)
