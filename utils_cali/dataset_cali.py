@@ -8,7 +8,7 @@ import cv2
 import OpenEXR
 import Imath
 
-from utils.dataset import BaseDataset, TUMDataset, ReplicaDataset, EurocDataset, RealsenseDataset
+from utils.dataset import ReplicaParser, BaseDataset, TUMDataset, ReplicaDataset, EurocDataset, RealsenseDataset
 from gaussian_splatting.utils.graphics_utils import focal2fov
 
 class SimulatedParser:
@@ -229,6 +229,109 @@ class SimulatesDatasets(SimulatedDataset):
         self.poses = parser.poses
         self.focal_changed = True
 
+class CaliDataset(BaseDataset):
+    def __init__(self, args, path, config):
+        super().__init__(args, path, config)
+        calibration = config["Dataset"]["Calibration"]
+        # Camera prameters
+        self.cx = calibration["cx"]
+        self.cy = calibration["cy"]
+        self.width = calibration["width"]
+        self.height = calibration["height"]
+        self.load_focal(config["Dataset"]["dataset_path"]+"/intrinsics.txt")
+        # distortion parameters
+        self.disorted = calibration["distorted"]
+        # depth parameters
+        self.has_depth = True if "depth_scale" in calibration.keys() else False
+        self.depth_scale = calibration["depth_scale"] if self.has_depth else None
+
+        # Default scene scale
+        nerf_normalization_radius = 5
+        self.scene_info = {
+            "nerf_normalization": {
+                "radius": nerf_normalization_radius,
+                "translation": np.zeros(3),
+            },
+        }
+    def load_focal(self, path):
+        self.fx = []
+        self.fy = []
+        self.cali_id = []
+        self.fovx = []
+        self.fovy = []
+        self.K = []
+        self.dist_coeffs = np.zeros(5)
+        self.map1x = []
+        self.map1y = []
+        i = 0
+        with open(path, "r") as f:
+            lines = f.readlines()
+            for line in lines:
+                parts = line.split()
+                focal = float(parts[0])
+                if len(self.fx) != 0:
+                    i += 1 if focal != self.fx[-1] else 0
+                self.fx.append(focal)
+                self.fy.append(focal)
+                self.fovx.append(focal2fov(focal, self.width))
+                self.fovy.append(focal2fov(focal, self.height))
+                self.cali_id.append(i)
+                self.K.append( np.array(
+                    [[self.fx[-1], 0.0, self.cx], [0.0, self.fy[-1], self.cy], [0.0, 0.0, 1.0]]
+                ) )
+                map1x, map1y = cv2.initUndistortRectifyMap(
+                    self.K[-1],
+                    self.dist_coeffs,
+                    np.eye(3),
+                    self.K[-1],
+                    (self.width, self.height),
+                    cv2.CV_32FC1,
+                )
+                self.map1x.extend(map1x)
+                self.map1y.extend(map1y) 
+
+    def __getitem__(self, idx):
+        color_path = self.color_paths[idx]
+        pose = self.poses[idx]
+
+        fx = self.fx[idx]
+        fy = self.fy[idx]
+        fovx = self.fovx[idx]
+        fovy = self.fovy[idx]
+        cali_id = self.cali_id[idx]
+
+        image = np.array(Image.open(color_path))
+        depth = None
+
+        if self.disorted:
+            image = cv2.remap(image, self.map1x, self.map1y, cv2.INTER_LINEAR)
+
+        if self.has_depth:
+            depth_path = self.depth_paths[idx]
+            depth = np.array(Image.open(depth_path)) / self.depth_scale
+
+        image = (
+            torch.from_numpy(image / 255.0)
+            .clamp(0.0, 1.0)
+            .permute(2, 0, 1)
+            .to(device=self.device, dtype=self.dtype)
+        )
+        pose = torch.from_numpy(pose).to(device=self.device)
+        # print(f"image: {color_path}, cali_id: {cali_id}, fx: {fx}, height: {image.shape[1]}")
+        print(f"image: {color_path}, cali_id: {cali_id}, fx: {fx}, fy: {fy}, cx: {self.cx}, cy: {self.cy}, fovx: {fovx}, fovy: {fovy}, height: {self.height}, width: {self.width} ")
+        # print(f"image: {color_path}, pose_t: {pose[:3, 3]}, pose_R: {pose[:3, :3]}")
+        return image, depth, pose, fx, fy, self.cx, self.cx, fovx, fovy, self.height, self.width, cali_id
+class ReplicaCaliDataset(CaliDataset):
+    def __init__(self, args, path, config):
+        super().__init__(args, path, config)
+        dataset_path = config["Dataset"]["dataset_path"]
+        parser = ReplicaParser(dataset_path)
+        self.num_imgs = parser.n_img
+        self.color_paths = parser.color_paths
+        self.depth_paths = parser.depth_paths
+        self.poses = parser.poses  
+ 
+
 def load_dataset(args, path, config):
     if config["Dataset"]["type"] == "tum":
         dataset = TUMDataset(args, path, config)
@@ -237,6 +340,10 @@ def load_dataset(args, path, config):
     elif config["Dataset"]["type"] == "replica":
         dataset = ReplicaDataset(args, path, config)
         dataset.focal_changed = False
+        return dataset
+    elif config["Dataset"]["type"] == "replica_cali":
+        dataset = ReplicaCaliDataset(args, path, config)
+        dataset.focal_changed = True
         return dataset
     elif config["Dataset"]["type"] == "euroc":
         dataset = EurocDataset(args, path, config)

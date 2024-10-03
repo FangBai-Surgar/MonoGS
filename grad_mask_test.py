@@ -58,8 +58,12 @@ simulated_config_path = "./configs/mono/simulated/seq1.yaml"
 replica_img_path = "/datasets/replica/office0/results/frame000492.jpg"
 replica_config_path = "./configs/rgbd/replica/office0.yaml"
 
+replica_cali_img_path = "/datasets/replica/office0_cali/results/frame000492.jpg"
+replica_cali_config_path = "./configs/mono/replica/office0.yaml"
+
 tum_config = load_config(tum_fr3_config_path)
 replica_config = load_config(replica_config_path)
+replica_cali_config = load_config(replica_cali_config_path)
 simulated_config = load_config(simulated_config_path)
 
 
@@ -81,63 +85,72 @@ replica = (
 )
 replica_grad_mask = compute_grad_mask(replica, replica_config)
 
-simulated_img = np.array(Image.open(simulated_img_path))
-simulated = (
-    torch.from_numpy(simulated_img / 255.0)
+replica_cali_img = np.array(Image.open(replica_cali_img_path))
+replica_cali = (
+    torch.from_numpy(replica_cali_img / 255.0)
     .clamp(0.0, 1.0)
     .permute(2, 0, 1)
     .to(device="cuda:0", dtype=torch.float32)
 )
-# for simulated dataset, we need to provide the edge threshold for testing
-fig, axs = plt.subplots(4, 4)
-for i in range(1, 9):
-    # th = 2-4
-    th = 2 + (4-2)/8*(i-1)
-    simulated_grad_mask = compute_grad_mask(simulated, simulated_config, edg_th=th)
-    axs[(i-1) // 2, i%2].imshow(simulated_grad_mask.cpu().numpy().squeeze(), cmap="gray")
-    axs[(i-1) // 2, i%2].set_title(f"Grad Mask (edge th = {th})")
+replica_cali_grad_mask = compute_grad_mask(replica_cali, replica_cali_config)
 
-for i in range(0, 4):
-    th = 2 + (4-2)/8*i
-    pa_size = 8
-    simulated_grad_mask = compute_grad_mask(simulated, replica_config, edg_th=th, patch_size=pa_size)
-    axs[i, 2].imshow(simulated_grad_mask.cpu().numpy().squeeze(), cmap="gray")
-    axs[i, 2].set_title(f"Patch {pa_size} Grad Mask (edge th = {th})")
+# simulated_img = np.array(Image.open(simulated_img_path))
+# simulated = (
+#     torch.from_numpy(simulated_img / 255.0)
+#     .clamp(0.0, 1.0)
+#     .permute(2, 0, 1)
+#     .to(device="cuda:0", dtype=torch.float32)
+# )
+# # for simulated dataset, we need to provide the edge threshold for testing
+# fig, axs = plt.subplots(4, 4)
+# for i in range(1, 9):
+#     # th = 2-4
+#     th = 2 + (4-2)/8*(i-1)
+#     simulated_grad_mask = compute_grad_mask(simulated, simulated_config, edg_th=th)
+#     axs[(i-1) // 2, i%2].imshow(simulated_grad_mask.cpu().numpy().squeeze(), cmap="gray")
+#     axs[(i-1) // 2, i%2].set_title(f"Grad Mask (edge th = {th})")
 
-for i in range(0, 4):
-    th = 2 + (4-2)/8*i
-    pa_size = 64
-    simulated_grad_mask = compute_grad_mask(simulated, replica_config, edg_th=th, patch_size=pa_size)
-    axs[i, 3].imshow(simulated_grad_mask.cpu().numpy().squeeze(), cmap="gray")
-    axs[i, 3].set_title(f"Patch {pa_size} Grad Mask (edge th = {th})")
-plt.show()
-simulated_grad_mask = compute_grad_mask(simulated, simulated_config, edg_th=0.5)
-# visualize the image and the gradient mask
+# for i in range(0, 4):
+#     th = 2 + (4-2)/8*i
+#     pa_size = 8
+#     simulated_grad_mask = compute_grad_mask(simulated, replica_config, edg_th=th, patch_size=pa_size)
+#     axs[i, 2].imshow(simulated_grad_mask.cpu().numpy().squeeze(), cmap="gray")
+#     axs[i, 2].set_title(f"Patch {pa_size} Grad Mask (edge th = {th})")
 
-# # figure 1
+# for i in range(0, 4):
+#     th = 2 + (4-2)/8*i
+#     pa_size = 64
+#     simulated_grad_mask = compute_grad_mask(simulated, replica_config, edg_th=th, patch_size=pa_size)
+#     axs[i, 3].imshow(simulated_grad_mask.cpu().numpy().squeeze(), cmap="gray")
+#     axs[i, 3].set_title(f"Patch {pa_size} Grad Mask (edge th = {th})")
+# plt.show()
+# simulated_grad_mask = compute_grad_mask(simulated, simulated_config, edg_th=0.5)
+# # visualize the image and the gradient mask
+
+# # # figure 1
+# # fig, axs = plt.subplots(1, 2)
+# # axs[0].imshow(tum_img)
+# # axs[0].set_title("TUM RGB Image")
+# # axs[0].axis("off")
+# # axs[1].imshow(tum_grad_mask.cpu().numpy().squeeze(), cmap="gray")
+# # axs[1].set_title("TUM Gradient Mask")
+# # # axs[1].axis("off")
+# # plt.show()
+# # figure 2
 # fig, axs = plt.subplots(1, 2)
-# axs[0].imshow(tum_img)
-# axs[0].set_title("TUM RGB Image")
+# axs[0].imshow(replica_img)
+# axs[0].set_title("Replica RGB Image")
 # axs[0].axis("off")
-# axs[1].imshow(tum_grad_mask.cpu().numpy().squeeze(), cmap="gray")
-# axs[1].set_title("TUM Gradient Mask")
+# axs[1].imshow(replica_grad_mask.cpu().numpy().squeeze(), cmap="gray")
+# axs[1].set_title("Replica Gradient Mask")
 # # axs[1].axis("off")
 # plt.show()
-# figure 2
-fig, axs = plt.subplots(1, 2)
-axs[0].imshow(replica_img)
-axs[0].set_title("Replica RGB Image")
-axs[0].axis("off")
-axs[1].imshow(replica_grad_mask.cpu().numpy().squeeze(), cmap="gray")
-axs[1].set_title("Replica Gradient Mask")
+# # # figure 3
+# fig, axs = plt.subplots(1, 2)
+# axs[0].imshow(simulated_img)
+# axs[0].set_title("Simulated RGB Image")
+# axs[0].axis("off")
+# axs[1].imshow(simulated_grad_mask.cpu().numpy().squeeze(), cmap="gray")
+# axs[1].set_title("Simulated Gradient Mask")
 # axs[1].axis("off")
-plt.show()
-# # figure 3
-fig, axs = plt.subplots(1, 2)
-axs[0].imshow(simulated_img)
-axs[0].set_title("Simulated RGB Image")
-axs[0].axis("off")
-axs[1].imshow(simulated_grad_mask.cpu().numpy().squeeze(), cmap="gray")
-axs[1].set_title("Simulated Gradient Mask")
-axs[1].axis("off")
-plt.show()
+# plt.show()
