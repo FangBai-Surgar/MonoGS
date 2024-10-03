@@ -421,6 +421,7 @@ class FrontEnd(mp.Process):
                     viewpoint.update_RT(prev.R, prev.T) # use last frame pose
                     if viewpoint.calibration_identifier != prev.calibration_identifier:
                         signal_calibration_change = True
+                        self.backend_queue.put(["calibration_change"])
                         rich.print(f"\n[bold red]FrontEnd: calibration change detected at frame_idx: [/bold red]{cur_frame_idx}")
                         if focal_ref is not None:
                             rich.print(f"[bold magenta]At Frame {viewpoint.uid}, change focal length (fx) to: [/bold magenta] {focal_ref} ")

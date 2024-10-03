@@ -149,7 +149,7 @@ class BackEnd(mp.Process):
         Log("Initialized map")
         return render_pkg
 
-    def map(self, current_window, prune=False, iters=1, calibrate=False):
+    def map(self, current_window, prune=False, calibrate=False, iters=1):
         if len(current_window) == 0:
             return
         # print(f"slam_backend::map() current_window={current_window}, prune={prune}, iters={iters}")
@@ -407,8 +407,9 @@ class BackEnd(mp.Process):
                     continue
                 self.map(self.current_window)
                 if self.last_sent >= 10:
-                    self.map(self.current_window, prune=True, iters=10)
+                    self.map(self.current_window, prune=True, calibrate=True, iters=10)
                     self.push_to_frontend()
+                    rich.print("[bold green]Backend : no data from front-end, continue optimizing existing data [/bold green]")
             else:
                 data = self.backend_queue.get()
                 if data[0] == "stop":
@@ -433,6 +434,10 @@ class BackEnd(mp.Process):
                     )
                     self.initialize_map(cur_frame_idx, viewpoint)
                     self.push_to_frontend("init")
+
+                elif data[0] == "calibration_change":
+                    self.map(self.current_window, prune=False, calibrate=False, iters=20)
+                    rich.print("[bold red]Backend : calibration change signal recieved [/bold red]")
 
                 elif data[0] == "keyframe":
                     cur_frame_idx = data[1]
