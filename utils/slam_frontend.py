@@ -410,7 +410,8 @@ class FrontEnd(mp.Process):
                         focal_ref = 200
                     else:
                         viewpoint.calibration_identifier = 0
-                    rich.print("[bold magenta]Change focal length (fx) to: [/bold magenta]", focal_ref)
+                        focal_ref = None
+                        
 
 
                 signal_calibration_change = False
@@ -421,6 +422,8 @@ class FrontEnd(mp.Process):
                     if viewpoint.calibration_identifier != prev.calibration_identifier:
                         signal_calibration_change = True
                         rich.print(f"\n[bold red]FrontEnd: calibration change detected at frame_idx: [/bold red]{cur_frame_idx}")
+                        if focal_ref is not None:
+                            rich.print(f"[bold magenta]At Frame {viewpoint.uid}, change focal length (fx) to: [/bold magenta] {focal_ref} ")
 
 
                 ###### test code block
@@ -444,7 +447,7 @@ class FrontEnd(mp.Process):
                 # use the pose from the neartest frame
                 if self.require_calibration and self.initialized and signal_calibration_change:
                     self.init_focal (viewpoint, gaussian_scale_t = 10.0,  beta = 1.0, learning_rate = 0.1, max_iter_num = 20)
-                    self.init_focal (viewpoint, gaussian_scale_t = 0.0,  beta = 0.0, learning_rate = 0.01, max_iter_num = 50)
+                    self.init_focal (viewpoint, gaussian_scale_t = 0.0,  beta = 0.0, learning_rate = 0.01, max_iter_num = 30)
 
                 render_pkg = self.tracking(cur_frame_idx, viewpoint)
 
