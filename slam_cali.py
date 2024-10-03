@@ -143,6 +143,7 @@ class SLAM:
 
         if self.eval_rendering:
             self.gaussians = self.frontend.gaussians
+            kf_indices = self.frontend.kf_indices
             if self.eval_keyframes: 
                 kf_indices = self.frontend.kf_indices
             else: # if the sequence is short, we can evaluate all the frames
@@ -153,6 +154,7 @@ class SLAM:
             ATE = eval_ate(
                 self.frontend.cameras,
                 [i for i in range(0, N_frames)],
+                # self.frontend.kf_indices,
                 self.save_dir,
                 0,
                 final=True,
@@ -240,8 +242,9 @@ if __name__ == "__main__":
 
     # Set up command line argument parser
     parser = ArgumentParser(description="Training script parameters")
-    parser.add_argument("--config", type=str)
-    parser.add_argument("--eval", action="store_true")
+    parser.add_argument("--config", type=str, default="configs/mono/simulated/seq1.yaml")
+    # parser.add_argument("--config", type=str, default="configs/mono/tum/fr3_office.yaml")
+    parser.add_argument("--eval", action="store_true", default=True)
     parser.add_argument("--require_calibration", action="store_true", default=False)
     parser.add_argument("--allow_lens_distortion", action="store_true", default=False)
 
@@ -268,7 +271,7 @@ if __name__ == "__main__":
         Log("\tsave_results=True")
         config["Results"]["save_results"] = True
         Log("\tuse_gui=False")
-        config["Results"]["use_gui"] = False
+        config["Results"]["use_gui"] = True
         Log("\teval_rendering=True")
         config["Results"]["eval_rendering"] = True
         Log("\tuse_wandb=True")

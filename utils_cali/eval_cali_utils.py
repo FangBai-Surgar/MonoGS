@@ -3,6 +3,7 @@ import os
 
 import cv2
 import evo
+import evo.main_config
 import numpy as np
 import torch
 from evo.core import metrics, trajectory
@@ -22,6 +23,7 @@ from gaussian_splatting.utils.system_utils import mkdir_p
 from utils.logging_utils import Log
 
 import copy
+# write a dict
 
 def evaluate_evo(poses_gt, poses_est, plot_dir, label, monocular=False):
     ## Plot
@@ -66,6 +68,25 @@ def evaluate_evo(poses_gt, poses_est, plot_dir, label, monocular=False):
     ax.legend()
     plt.savefig(os.path.join(plot_dir, "evo_2dplot_{}.png".format(str(label))), dpi=90)
 
+    # if label == "final":
+    plot_mode = evo.tools.plot.PlotMode.xyz
+    fig = plt.figure()
+    ax = evo.tools.plot.prepare_axis(fig, plot_mode)
+    ax.set_title(f"ATE RMSE: {ape_stat}")
+    # SETTINGS.plot_axis_marker_scale = 0.1
+    # SETTINGS.plot_reference_axis_marker_scale = 0.1
+    # SETTINGS.plot_pose_correspondences = True
+    evo.tools.plot.traj(ax, plot_mode, traj_ref, "--", "gray", "gt")
+    evo.tools.plot.traj_colormap(
+        ax,
+        traj_est_aligned,
+        ape_metric.error,
+        plot_mode,
+        min_map=ape_stats["min"],
+        max_map=ape_stats["max"],
+    )
+    ax.legend()
+    plt.savefig(os.path.join(plot_dir, "evo_3dplot_{}.png".format(str(label))), dpi=90)
     return ape_stat
 
 
@@ -74,8 +95,6 @@ def eval_ate(frames, kf_ids, save_dir, iterations, final=False, monocular=False)
     latest_frame_idx = kf_ids[-1] + 2 if final else kf_ids[-1] + 1
     trj_id, trj_est, trj_gt = [], [], []
     trj_est_np, trj_gt_np = [], []
-    print(f"final: {final}")
-    print(f"Final ATE evaluation for keyframes: {kf_ids}")
 
     def gen_pose_matrix(R, T):
         pose = np.eye(4)
@@ -117,20 +136,6 @@ def eval_ate(frames, kf_ids, save_dir, iterations, final=False, monocular=False)
     )
     wandb.log({"frame_idx": latest_frame_idx, "ate": ate})
     return ate
-
-def read_traj_final_json_file(filename):
-    try:
-        # Open the file for reading
-        with open(filename, 'r', encoding='utf-8') as file:
-            # Load the JSON data from the file
-            data = json.load(file)
-        return [data["trj_id"], data["trj_est"], data["trj_gt"]]
-    except FileNotFoundError:
-        print("The file was not found.")
-    except json.JSONDecodeError:
-        print("Error decoding JSON from the file.")
-    except Exception as e:
-        print(f"An error occurred: {e}")
 
 def eval_rendering(
     frames,

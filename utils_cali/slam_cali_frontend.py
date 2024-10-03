@@ -19,6 +19,7 @@ from gaussian_scale_space import image_conv_gaussian_separable
 from utils.slam_frontend import FrontEnd
 from utils_cali.eval_cali_utils import eval_ate
 
+import rich
 
 
 class FrontEndCali(FrontEnd):
@@ -87,6 +88,9 @@ class FrontEndCali(FrontEnd):
                     prev = self.cameras[last_keyframe_idx]
                     viewpoint.update_calibration (prev.fx, prev.fy, prev.kappa)
                     viewpoint.update_RT(prev.R, prev.T)
+                    # print delta_R, delta_T
+                    rich.print(f"FrontEnd      Init : [{cur_frame_idx}]: delta_t = {[f'{x.item():.8f}' for x in (viewpoint.T_gt - viewpoint.T)]}")
+
                     signal_calibration_change = (viewpoint.calibration_identifier != prev.calibration_identifier)
 
                 self.cameras[cur_frame_idx] = viewpoint
@@ -108,6 +112,9 @@ class FrontEndCali(FrontEnd):
 
                 # pose tracking
                 render_pkg = self.tracking(cur_frame_idx, viewpoint)
+                rich.print(f"FrontEnd  Tracking : [{cur_frame_idx}]: delta_t = {[f'{x.item():.8f}' for x in (viewpoint.T_gt - viewpoint.T)]}")
+
+
 
 
                 current_window_dict = {}

@@ -212,7 +212,9 @@ class SimulatedDataset(BaseDataset):
             .to(device=self.device, dtype=self.dtype)
         )
         pose = torch.from_numpy(pose).to(device=self.device)
-        print(f"image: {color_path}, cali_id: {cali_id}")
+        print(f"image: {color_path}, cali_id: {cali_id}, fx: {fx}, height: {image.shape[1]}")
+        # print(f"image: {color_path}, cali_id: {cali_id}, fx: {fx}, fy: {fy}, cx: {cx}, cy: {cy}, fovx: {fovx}, fovy: {fovy}, height: {height}, width: {width} ")
+        # print(f"image: {color_path}, pose_t: {pose[:3, 3]}, pose_R: {pose[:3, :3]}")
         return image, depth, pose, fx, fy, cx, cy, fovx, fovy, height, width, cali_id
         # return image, depth, pose
 
