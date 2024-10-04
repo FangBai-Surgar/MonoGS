@@ -393,6 +393,13 @@ class BackEnd(mp.Process):
         msg = [tag, clone_obj(self.gaussians), self.occ_aware_visibility, keyframes]
         self.frontend_queue.put(msg)
 
+
+    def save_calib_results (self):
+        print(f"\n\nCalibration results")
+        for cam_id, viewpoint in self.viewpoints.items():
+            print(f"cam_id: {cam_id}: \tcalib_id: {viewpoint.calibration_identifier}: fx = {viewpoint.fx:.3f}, fy = {viewpoint.fy:.3f}, kappa = {viewpoint.kappa:.6f}")
+
+
     def run(self):
         while True:
             if self.backend_queue.empty():
@@ -437,8 +444,8 @@ class BackEnd(mp.Process):
                     self.push_to_frontend("init")
 
                 elif data[0] == "calibration_change":
-                    self.map(self.current_window, prune=False, calibrate=False, iters=20)
-                    self.map(self.current_window, prune=True, calibrate=False, iters=10)
+                    self.map(self.current_window, prune=False, calibrate=False, iters=10)
+                    self.map(self.current_window, prune=True, calibrate=False, iters=20)
                     self.push_to_frontend()
                     rich.print("[bold red]Backend : calibration change signal recieved [/bold red]")
 
@@ -541,8 +548,8 @@ class BackEnd(mp.Process):
                     ### The order of following three matters a lot! ###
                     if self.calibration_optimizers is not None:
                         if (calibration_identifier_cnt < 2): # Don't update 3D structure with one view
-                            self.calibration_optimizers.update_focal_learning_rate(lr = 0.01)
-                            self.map(self.current_window, calibrate=True, fix_gaussian=True,  iters=iter_per_kf*5)
+                            self.calibration_optimizers.update_focal_learning_rate(lr = 0.005)
+                            self.map(self.current_window, calibrate=True, fix_gaussian=True,  iters=iter_per_kf*3)
                         else:
                             self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)
                             self.map(self.current_window, calibrate=True, fix_gaussian=False, iters=iter_per_kf)
@@ -564,13 +571,8 @@ class BackEnd(mp.Process):
 
                 else:
                     raise Exception("Unprocessed data", data)
-
-                        
-        # print final camera calibrations for debugging
-        print(f"\n\nCalibration results")
-        for cam_id, viewpoint in self.viewpoints.items():
-            print(f"cam_id: {cam_id}: \tcalib_id: {viewpoint.calibration_identifier}: fx = {viewpoint.fx:.3f}, fy = {viewpoint.fy:.3f}, kappa = {viewpoint.kappa:.6f}")
-
+        
+        self.save_calib_results()
 
         while not self.backend_queue.empty():
             self.backend_queue.get()
