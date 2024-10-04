@@ -447,15 +447,22 @@ class BackEnd(mp.Process):
                     current_window = data[3]
                     depth_map = data[4]
 
-                    self.viewpoints[cur_frame_idx] = viewpoint
-                    self.current_window = current_window
-                    self.add_next_kf(cur_frame_idx, viewpoint, depth_map=depth_map)
-
-                    current_calibration_identifier = self.viewpoints[cur_frame_idx].calibration_identifier
-                    calibration_identifier_cnt = 0
-
                     rich.print(f"[bold blue]BackEnd  Receive :[/bold blue] [{cur_frame_idx}]: fx: {viewpoint.fx:.3f}, fy: {viewpoint.fy:.3f}, kappa: {viewpoint.kappa:.6f}, calib_id: {viewpoint.calibration_identifier}")
 
+                    current_calibration_identifier = viewpoint.calibration_identifier
+                    calibration_identifier_cnt = 0
+
+                    if len(self.current_window):
+                        last_keyframe = self.viewpoints[ self.current_window[0] ]
+                        if (current_calibration_identifier == last_keyframe.calibration_identifier):
+                            viewpoint.update_calibration(last_keyframe.fx, last_keyframe.fy, last_keyframe.kappa) # use the calibration estimate in backend keyframes
+
+                    rich.print(f"[bold blue]BackEnd  InitEst :[/bold blue] [{cur_frame_idx}]: fx: {viewpoint.fx:.3f}, fy: {viewpoint.fy:.3f}, kappa: {viewpoint.kappa:.6f}, calib_id: {viewpoint.calibration_identifier}")
+
+                    self.viewpoints[cur_frame_idx] = viewpoint
+                    self.current_window = current_window
+                    self.add_next_kf(cur_frame_idx, viewpoint, depth_map=depth_map)               
+                    
                     pose_opt_params = []
                     calib_opt_frames_stack = []
                     frames_to_optimize = self.config["Training"]["pose_window"]
