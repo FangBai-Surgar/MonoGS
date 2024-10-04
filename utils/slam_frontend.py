@@ -479,7 +479,7 @@ class FrontEnd(mp.Process):
                     last_keyframe_idx,
                     curr_visibility,
                     self.occ_aware_visibility,
-                )
+                )                
                 if len(self.current_window) < self.window_size:
                     union = torch.logical_or(
                         curr_visibility, self.occ_aware_visibility[last_keyframe_idx]
@@ -494,7 +494,7 @@ class FrontEnd(mp.Process):
                     )
                 if self.single_thread:
                     create_kf = check_time and create_kf
-                if create_kf: # or signal_calibration_change:
+                if create_kf:
                     self.current_window, removed = self.add_to_window(
                         cur_frame_idx,
                         curr_visibility,
