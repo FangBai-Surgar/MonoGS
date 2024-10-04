@@ -216,9 +216,6 @@ class CalibrationOptimizer:
                 rich.print(f"\n[bold magenta]Newton update step[/bold magenta]")
                 self.maximum_newton_steps -= 1
                 self.update_gaussian_scale_t = True
-                # decrease learning rate after Newton steps
-                # if self.maximum_newton_steps == 0:
-                #     self.update_focal_learning_rate(lr = None, scale = 0.1)
 
         else:
 

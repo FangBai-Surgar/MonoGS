@@ -408,7 +408,7 @@ class BackEnd(mp.Process):
                     continue
                 self.map(self.current_window)
                 if self.last_sent >= 10:
-                    self.map(self.current_window, prune=True, calibrate=True, iters=10)
+                    self.map(self.current_window, prune=True, calibrate=False, iters=10)
                     self.push_to_frontend()
                     rich.print("[bold yellow]Backend : no data from front-end, continue optimizing existing data [/bold yellow]")
             else:
@@ -438,6 +438,7 @@ class BackEnd(mp.Process):
 
                 elif data[0] == "calibration_change":
                     self.map(self.current_window, prune=False, calibrate=False, iters=20)
+                    self.map(self.current_window, prune=True, calibrate=False, iters=10)
                     self.push_to_frontend()
                     rich.print("[bold red]Backend : calibration change signal recieved [/bold red]")
 
@@ -531,8 +532,7 @@ class BackEnd(mp.Process):
                         rich.print("[bold green]calibration optimizer[/bold green]. current_window: ", current_window)    
                         self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack, focal_ref)
                         self.calibration_optimizers.maximum_newton_steps = 0 # diable newton update
-                        self.calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
-                        self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)                  
+                        self.calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting                                      
                     else:
                         self.calibration_optimizers = None
 
@@ -540,8 +540,12 @@ class BackEnd(mp.Process):
 
                     ### The order of following three matters a lot! ###
                     if self.calibration_optimizers is not None:
-                        fix_gaussian = (calibration_identifier_cnt == 1) # Don't update 3D structure with one view
-                        self.map(self.current_window, calibrate=True, fix_gaussian=fix_gaussian, iters=iter_per_kf)
+                        if (calibration_identifier_cnt < 2): # Don't update 3D structure with one view
+                            self.calibration_optimizers.update_focal_learning_rate(lr = 0.01)
+                            self.map(self.current_window, calibrate=True, fix_gaussian=True,  iters=iter_per_kf*5)
+                        else:
+                            self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)
+                            self.map(self.current_window, calibrate=True, fix_gaussian=False, iters=iter_per_kf)
                     else:
                         self.map(self.current_window, iters=iter_per_kf)
                     self.map(self.current_window, prune=True)
