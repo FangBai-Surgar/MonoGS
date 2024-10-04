@@ -445,7 +445,7 @@ class FrontEnd(mp.Process):
                     len(self.current_window) == self.window_size
                 )
 
-                # use the pose from the neartest frame
+                # TUNING PARAMETERS
                 if self.require_calibration and self.initialized and signal_calibration_change:
                     self.init_focal (viewpoint, gaussian_scale_t = 10.0,  beta = 1.0, learning_rate = 0.1, max_iter_num = 20)
                     self.init_focal (viewpoint, gaussian_scale_t = 0.0,  beta = 0.0, learning_rate = 0.01, max_iter_num = 50)

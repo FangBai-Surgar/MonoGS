@@ -149,10 +149,9 @@ class BackEnd(mp.Process):
         Log("Initialized map")
         return render_pkg
 
-    def map(self, current_window, prune=False, calibrate=False, iters=1):
+    def map(self, current_window, prune=False, calibrate=False, fix_gaussian = False, iters=1):
         if len(current_window) == 0:
             return
-        # print(f"slam_backend::map() current_window={current_window}, prune={prune}, iters={iters}")
 
         viewpoint_stack = [self.viewpoints[kf_idx] for kf_idx in current_window]
         random_viewpoint_stack = []
@@ -165,7 +164,8 @@ class BackEnd(mp.Process):
             random_viewpoint_stack.append(viewpoint)
 
         for cur_itr in range(iters):
-            self.iteration_count += 1
+            if not fix_gaussian:
+                self.iteration_count += 1            
             self.last_sent += 1
 
             loss_mapping = 0
@@ -249,7 +249,7 @@ class BackEnd(mp.Process):
 
                 # # compute the visibility of the gaussians
                 # # Only prune on the last iteration and when we have full window
-                if prune:
+                if prune and not fix_gaussian:
                     if len(current_window) == self.config["Training"]["window_size"]:
                         prune_mode = self.config["Training"]["prune_mode"]
                         prune_coviz = 3
@@ -295,7 +295,7 @@ class BackEnd(mp.Process):
                     self.iteration_count % self.gaussian_update_every
                     == self.gaussian_update_offset
                 )
-                if update_gaussian:
+                if update_gaussian and (not fix_gaussian):
                     self.gaussians.densify_and_prune(
                         self.opt_params.densify_grad_threshold,
                         self.gaussian_th,
@@ -305,7 +305,7 @@ class BackEnd(mp.Process):
                     gaussian_split = True
 
                 ## Opacity reset
-                if (self.iteration_count % self.gaussian_reset) == 0 and (
+                if (self.iteration_count % self.gaussian_reset) == 0 and (not fix_gaussian) and (
                     not update_gaussian
                 ):
                     Log("Resetting the opacity of non-visible Gaussians")
@@ -336,9 +336,10 @@ class BackEnd(mp.Process):
                     update_pose(viewpoint)
 
                 # Structure (3D Gaussian) update
-                self.gaussians.optimizer.step()
-                self.gaussians.optimizer.zero_grad(set_to_none=True)
-                self.gaussians.update_learning_rate(self.iteration_count)
+                if not fix_gaussian:
+                    self.gaussians.optimizer.step()
+                    self.gaussians.optimizer.zero_grad(set_to_none=True)
+                    self.gaussians.update_learning_rate(self.iteration_count)
 
 
         return gaussian_split
@@ -437,6 +438,7 @@ class BackEnd(mp.Process):
 
                 elif data[0] == "calibration_change":
                     self.map(self.current_window, prune=False, calibrate=False, iters=20)
+                    self.push_to_frontend()
                     rich.print("[bold red]Backend : calibration change signal recieved [/bold red]")
 
                 elif data[0] == "keyframe":
@@ -514,7 +516,7 @@ class BackEnd(mp.Process):
                     self.keyframe_optimizers.zero_grad()
 
                     
-                    if self.require_calibration and self.initialized and calibration_identifier_cnt >= 2 and current_calibration_identifier != 0:
+                    if self.require_calibration and self.initialized and calibration_identifier_cnt >= 1 and current_calibration_identifier != 0:
                         # self.viewpoint_refinement(self.current_window, iters=50)
                         H = viewpoint.image_height
                         W = viewpoint.image_width
@@ -523,19 +525,21 @@ class BackEnd(mp.Process):
                         self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack, focal_ref)
                         self.calibration_optimizers.maximum_newton_steps = 0 # diable newton update
                         self.calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting
-                        self.calibration_optimizers.update_focal_learning_rate(lr = 0.005)                  
+                        self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)                  
                     else:
                         self.calibration_optimizers = None
 
                     iters = int(iter_per_kf/2) if self.calibration_optimizers is not None else iter_per_kf
 
                     ### The order of following three matters a lot! ###
-                    self.map(self.current_window, iters=iters)
                     if self.calibration_optimizers is not None:
-                        self.map(self.current_window, calibrate=True, iters=iters)
+                        fix_gaussian = (calibration_identifier_cnt == 1) # Don't update 3D structure with one view
+                        self.map(self.current_window, calibrate=True, fix_gaussian=fix_gaussian, iters=iter_per_kf)
+                    else:
+                        self.map(self.current_window, iters=iter_per_kf)
                     self.map(self.current_window, prune=True)
 
-                    # update all cameras with the same calibration_identifier
+                    # update all cameras with the most recent calibration_identifier
                     if self.calibration_optimizers is not None:
                         fx = self.viewpoints[cur_frame_idx].fx
                         fy = self.viewpoints[cur_frame_idx].fy
