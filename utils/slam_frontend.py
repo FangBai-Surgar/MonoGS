@@ -51,6 +51,7 @@ class FrontEnd(mp.Process):
         # calibration control params
         self.require_calibration = False
         self.MODULE_TEST_CALIBRATION = True
+        self.signal_calibration_change = False
 
 
     def set_hyperparams(self):
@@ -413,22 +414,34 @@ class FrontEnd(mp.Process):
                         focal_ref = None
                         
 
-
-                signal_calibration_change = False
                 if len(self.cameras) > self.use_every_n_frames:
                     prev = self.cameras[cur_frame_idx - self.use_every_n_frames] # last frame in tracking
                     viewpoint.update_calibration (prev.fx, prev.fy, prev.kappa) # use last frame calibration
                     viewpoint.update_RT(prev.R, prev.T) # use last frame pose
-                    if viewpoint.calibration_identifier != prev.calibration_identifier:
-                        signal_calibration_change = True
-                        self.backend_queue.put(["calibration_change"])
-                        rich.print(f"\n[bold red]FrontEnd: calibration change detected at frame_idx: [/bold red]{cur_frame_idx}")
-                        if focal_ref is not None:
-                            rich.print(f"[bold magenta]At Frame {viewpoint.uid}, change focal length (fx) to: [/bold magenta] {focal_ref} ")
+                    if viewpoint.calibration_identifier != prev.calibration_identifier:                        
+                        if (not self.signal_calibration_change):
+                            rich.print(f"\n[bold red]FrontEnd: calibration change detected at frame_idx: [/bold red]{cur_frame_idx}")
+                            self.backend_queue.put(["calibration_change"])
+                        self.signal_calibration_change = True
+                    else:
+                        self.signal_calibration_change = False
 
+                if self.signal_calibration_change:
+                    if self.requested_keyframe > 0:
+                        time.sleep(0.01)
+                        continue
+
+                calibration_keyframed = False
+                if (not self.signal_calibration_change) and len(self.current_window):
+                    last_keyframe_idx = self.current_window[0]
+                    last_keyframe = self.cameras[last_keyframe_idx] # last keyframe (optimzied by backend)
+                    if (last_keyframe.calibration_identifier == viewpoint.calibration_identifier):
+                        calibration_keyframed = True
 
                 ###### test code block
-                if self.MODULE_TEST_CALIBRATION and signal_calibration_change:
+                if self.MODULE_TEST_CALIBRATION and self.signal_calibration_change:
+                        if focal_ref is not None:
+                            rich.print(f"[bold magenta]At Frame {viewpoint.uid}, change focal length (fx) to: [/bold magenta] {focal_ref} ")
                         viewpoint.fx = focal_ref
                         viewpoint.fy = viewpoint.aspect_ratio * focal_ref
   
@@ -445,10 +458,17 @@ class FrontEnd(mp.Process):
                     len(self.current_window) == self.window_size
                 )
 
-                # use the pose from the neartest frame
-                if self.require_calibration and self.initialized and signal_calibration_change:
-                    self.init_focal (viewpoint, gaussian_scale_t = 10.0,  beta = 1.0, learning_rate = 0.1, max_iter_num = 20)
-                    self.init_focal (viewpoint, gaussian_scale_t = 0.0,  beta = 0.0, learning_rate = 0.01, max_iter_num = 50)
+                # TUNING PARAMETERS
+                if self.require_calibration and self.initialized:
+                    
+                    if self.signal_calibration_change:
+                        self.init_focal (viewpoint, gaussian_scale_t = 10.0,  beta = 0.0, learning_rate = 0.1, max_iter_num = 30)
+                        # self.init_focal (viewpoint, gaussian_scale_t = 5.0,  beta = 0.0, learning_rate = 0.01, max_iter_num = 30)
+                        self.init_focal (viewpoint, gaussian_scale_t = 0.0,  beta = 0.0, learning_rate = 0.01, max_iter_num = 70)
+
+                    # elif (not calibration_keyframed):
+                    #     print(f"not yet keyframed at {cur_frame_idx}")
+                    #     self.init_focal (viewpoint, gaussian_scale_t = 0.0,  beta = 0.0, learning_rate = 0.01, max_iter_num = 50)
 
                 render_pkg = self.tracking(cur_frame_idx, viewpoint)
 
@@ -479,7 +499,7 @@ class FrontEnd(mp.Process):
                     last_keyframe_idx,
                     curr_visibility,
                     self.occ_aware_visibility,
-                )
+                )                
                 if len(self.current_window) < self.window_size:
                     union = torch.logical_or(
                         curr_visibility, self.occ_aware_visibility[last_keyframe_idx]
@@ -494,7 +514,7 @@ class FrontEnd(mp.Process):
                     )
                 if self.single_thread:
                     create_kf = check_time and create_kf
-                if create_kf: # or signal_calibration_change:
+                if create_kf:
                     self.current_window, removed = self.add_to_window(
                         cur_frame_idx,
                         curr_visibility,
