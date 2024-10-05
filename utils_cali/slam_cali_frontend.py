@@ -21,15 +21,42 @@ from utils_cali.eval_cali_utils import eval_ate
 
 import rich
 
+class Simulator():
+    def __init__(self, path):
+        self.load_intrinsics(path)
+
+    def load_intrinsics(self, path):
+        self.fx = []
+        self.fy = []
+        self.cali_id = []
+        i = 0
+        with open(path, "r") as f:
+            lines = f.readlines()
+            for line in lines: 
+                parts = line.split()
+                focal = float(parts[0])
+                if len(self.fx) != 0:
+                    i += 1 if focal != self.fx[-1] else 0
+                self.fx.append(focal)
+                self.fy.append(focal)
+                self.cali_id.append(i)
 
 class FrontEndCali(FrontEnd):
 
     def __init__(self, config):
         super().__init__(config)
 
-
+        # path = config["Dataset"]["intrinsic_path"]
+        # if config["Dataset"]["intrinsic_path"] is not None:
+        #     self.simulator = Simulator(config["Dataset"]["intrinsic_path"])
+        # else:
+        #     self.simulator = None
+        path = config.get("Dataset", {}).get("intrinsic_filename", None)
+        self.simulator = Simulator(config["Dataset"]["dataset_path"] + '/' + path) if path is not None else None       
 
     def run(self):
+        # assert self.dataset.num_imgs == self.simulator.fx.shape[0]
+        print(f"self.MODULE_TEST_CALIBRATION: {self.MODULE_TEST_CALIBRATION}")
         cur_frame_idx = 0
         tic = torch.cuda.Event(enable_timing=True)
         toc = torch.cuda.Event(enable_timing=True)
@@ -79,19 +106,30 @@ class FrontEndCali(FrontEnd):
                 viewpoint = Camera.init_from_dataset(
                     self.dataset, cur_frame_idx
                 )
+
                 viewpoint.compute_grad_mask(self.config)
+
+                if self.MODULE_TEST_CALIBRATION and self.simulator is not None:
+                    viewpoint.calibration_identifier = self.simulator.cali_id[cur_frame_idx]
+                    focal_ref = None if viewpoint.calibration_identifier == 0 else self.simulator.fx[cur_frame_idx]
+                    viewpoint.fx_init = self.simulator.fx[cur_frame_idx]
+                    viewpoint.fy_init = self.simulator.fy[cur_frame_idx]
+                    viewpoint.kappa_init = 0.0 # backup
+                    # viewpoint.fx = self.simulator.fx[cur_frame_idx]
+                    # viewpoint.fy = self.simulator.fy[cur_frame_idx]
+
 
                 # initialize calibration and pose to the previous camera
                 signal_calibration_change = False
-                if len(self.current_window):
-                    last_keyframe_idx = self.current_window[0]
-                    prev = self.cameras[last_keyframe_idx]
-                    viewpoint.update_calibration (prev.fx, prev.fy, prev.kappa)
-                    viewpoint.update_RT(prev.R, prev.T)
-                    # print delta_R, delta_T
-                    rich.print(f"FrontEnd      Init : [{cur_frame_idx}]: delta_t = {[f'{x.item():.8f}' for x in (viewpoint.T_gt - viewpoint.T)]}")
-
-                    signal_calibration_change = (viewpoint.calibration_identifier != prev.calibration_identifier)
+                if len(self.cameras) > self.use_every_n_frames:
+                    prev = self.cameras[cur_frame_idx - self.use_every_n_frames] # last frame in tracking
+                    viewpoint.update_calibration (prev.fx, prev.fy, prev.kappa) # use last frame calibration
+                    viewpoint.update_RT(prev.R, prev.T) # use last frame pose
+                    if viewpoint.calibration_identifier != prev.calibration_identifier:
+                        signal_calibration_change = True
+                        self.backend_queue.put(["calibration_change"])
+                        if focal_ref is not None:
+                            rich.print(f"[bold magenta]At Frame {viewpoint.uid}, change focal length (fx) to: [/bold magenta] {focal_ref} ")
 
                 self.cameras[cur_frame_idx] = viewpoint
 
@@ -108,7 +146,8 @@ class FrontEndCali(FrontEnd):
 
                 # focal tracking
                 if self.require_calibration and self.initialized and signal_calibration_change:
-                    self.focal_tracking (cur_frame_idx, viewpoint, gaussian_scale_t = 1.0, max_iter_num = 100)
+                    self.init_focal (viewpoint, gaussian_scale_t = 10.0,  beta = 1.0, learning_rate = 0.1, max_iter_num = 20) #10% * 600 = 60
+                    self.init_focal (viewpoint, gaussian_scale_t = 0.0,  beta = 0.0, learning_rate = 0.01, max_iter_num = 50)
 
                 # pose tracking
                 render_pkg = self.tracking(cur_frame_idx, viewpoint)
@@ -158,7 +197,7 @@ class FrontEndCali(FrontEnd):
                     )
                 if self.single_thread:
                     create_kf = check_time and create_kf
-                if create_kf or signal_calibration_change:
+                if create_kf: # or signal_calibration_change:
                     self.current_window, removed = self.add_to_window(
                         cur_frame_idx,
                         curr_visibility,
@@ -180,7 +219,9 @@ class FrontEndCali(FrontEnd):
                     self.request_keyframe(
                         cur_frame_idx, viewpoint, self.current_window, depth_map
                     )
-                    print(f"\nKeyframe {cur_frame_idx} sent to backend:   fx = {viewpoint.fx:.3f}, fy = {viewpoint.fy:.3f}, kappa = {viewpoint.kappa:.6f}, calib_id = {viewpoint.calibration_identifier}")
+                    rich.print(f"[bold blue]FrontEnd Send    :[/bold blue] [{cur_frame_idx}]: fx: {viewpoint.fx:.3f}, fy: {viewpoint.fy:.3f}, kappa: {viewpoint.kappa:.6f}, calib_id: {viewpoint.calibration_identifier}")
+
+
                 else:
                     self.cleanup(cur_frame_idx)
                 cur_frame_idx += 1
