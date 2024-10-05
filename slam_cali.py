@@ -242,7 +242,7 @@ if __name__ == "__main__":
 
     # Set up command line argument parser
     parser = ArgumentParser(description="Training script parameters")
-    parser.add_argument("--config", type=str, default="configs/mono/replica/office0.yaml")
+    parser.add_argument("--config", type=str, default="configs/mono/replica/office0_cali.yaml")
     parser.add_argument("--eval", action="store_true", default=True)
     parser.add_argument("--require_calibration", action="store_true", default=False)
     parser.add_argument("--allow_lens_distortion", action="store_true", default=False)
