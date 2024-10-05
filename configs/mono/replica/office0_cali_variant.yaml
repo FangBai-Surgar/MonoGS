@@ -1,0 +1,20 @@
+inherit_from: "configs/mono/replica/base_config.yaml"
+Dataset:
+  type: 'replica'
+  dataset_path: "/datasets/replica/office0_cali"
+  intrinsic_filename: "intrinsics.txt" # path = dataset_path + '/' + intrinsic_file 
+  single_thread: True
+  Calibration:
+    fx: 600.0
+    fy: 600.0
+    cx: 599.5
+    cy: 339.5
+    k1: 0.0
+    k2: 0.0
+    p1: 0.0
+    p2: 0.0
+    k3: 0.0
+    width: 1200
+    height: 680
+    depth_scale: 6553.5
+    distorted: False
