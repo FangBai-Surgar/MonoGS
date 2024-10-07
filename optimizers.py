@@ -22,7 +22,7 @@ from rich.console import Console
 class CalibrationOptimizer:
 
 
-    def __init__(self, viewpoint_stack, focal_reference = None) -> None:
+    def __init__(self, viewpoint_stack, focal_reference = None, focal_optimizer_type = "Adam") -> None:
 
         self.viewpoint_stack = viewpoint_stack
 
@@ -35,6 +35,8 @@ class CalibrationOptimizer:
 
         self.current_calib_id = -1
 
+        self.focal_optimizer_type = focal_optimizer_type
+
         self.__init_calibration_groups()
         self.__init_current_calibration_id()
         self.__init_optimizers()
@@ -43,18 +45,14 @@ class CalibrationOptimizer:
         self.focal_stack = []
 
         self.num_line_elements = 20
-        self.maximum_newton_steps = 2
 
         self.update_gaussian_scale_t = False
 
         self.FOCAL_LENGTH_RANGE = [0, 2000]
 
-        if focal_reference is not None:
-            self.focal_gradient_normalizer = focal_reference
-        else:
-            self.focal_gradient_normalizer = viewpoint_stack[0].fx
-            
-
+        self.focal_gradient_normalizer = focal_reference if focal_reference is not None else viewpoint_stack[0].fx
+        
+        
     def __init_calibration_groups(self):
         self.calibration_groups = {}
         for viewpoint_cam in self.viewpoint_stack:
@@ -66,8 +64,6 @@ class CalibrationOptimizer:
             # gradients to these variables will be computed manually, thus requires_grad = False
             self.focal_delta_groups [ calib_id ] = torch.tensor([0.0], requires_grad=False, device=cam_stack[0].device)
             self.kappa_delta_groups [ calib_id ] = torch.tensor([0.0], requires_grad=False, device=cam_stack[0].device)
-            # self.focal_delta_groups [ calib_id ].grad = torch.tensor([0.0], device=cam_stack[0].device)
-            # self.kappa_delta_groups [ calib_id ].grad = torch.tensor([0.0], device=cam_stack[0].device)
 
 
     def __init_current_calibration_id(self, current_calib_id = None):
@@ -79,8 +75,6 @@ class CalibrationOptimizer:
                 num_views = len(cam_stack)
                 if calib_id > self.current_calib_id and num_views >= 1:
                     self.current_calib_id = calib_id
-        # print(f"self.current_calib_id = {self.current_calib_id}")
-
 
 
     def __init_optimizers(self):
@@ -101,10 +95,14 @@ class CalibrationOptimizer:
                         "name": "calibration_k_{}".format(calib_id),
                     }
                 )
-        self.focal_optimizer = torch.optim.Adam(focal_opt_params)
+        if self.focal_optimizer_type  == "SGD" or self.focal_optimizer_type  == "sgd":
+            self.focal_optimizer = torch.optim.SGD(focal_opt_params)
+        elif self.focal_optimizer_type  == "Adam" or self.focal_optimizer_type  == "adam" or self.focal_optimizer_type  == "ADAM":
+            self.focal_optimizer = torch.optim.Adam(focal_opt_params)
+        else:
+            raise TypeError("Only SGD and Adam are supported for focal length optimization!")
+        
         self.kappa_optimizer = torch.optim.Adam(kappa_opt_params)
-        
-        
 
 
 
@@ -169,72 +167,49 @@ class CalibrationOptimizer:
                     viewpoint_cam.kappa += kappa_delta
                 return kappa_grad
 
+    
 
-
-    # Newton step implementation for focal length optimization
-    # only availabe for the most recent calibration identifier, where:
-    # calibration_identifier = self.current_calib_id
-    def __newton_step_impl (self, calibration_identifier):
-        # First perform a standard gradient descent, and then modify the update with newton step if necessary
-        self.focal_optimizer.step()
-
-        for calib_id, cam_stack in self.calibration_groups.items():
-
-            if calib_id == calibration_identifier:
-
-                focal_stack, focal_grad_stack = self.get_focal_statistics()
-                if focal_stack is None or len(focal_stack) == 0:
-                    return False
-
-                focal_grad  = self.focal_delta_groups [ calib_id ].grad.cpu().numpy()[0]
-                newton_update = LineDetection(focal_stack, focal_grad_stack).compute_newton_update(grad = focal_grad)
-
-                test_focal = cam_stack[0].fx + newton_update                
-
-                if (test_focal > self.FOCAL_LENGTH_RANGE[0] and test_focal < self.FOCAL_LENGTH_RANGE[1]):
-                    self.focal_delta_groups [ calib_id ].data.fill_(newton_update)  # use Newton update
-                    return True
-        
-        return False
-
-
-
-    def focal_step(self, loss=None):
-        self.__update_focal_gradients()
-
-        # L-BFGS closure
-        def closure():
-            return loss
-
-        converged = False
-
-        # implement a Newton step by estimating Hessian from line fitting of History data (focals, focal_grads)
-        if self.maximum_newton_steps > 0 and self.num_line_elements > 0 and len(self.focal_stack) and len(self.focal_stack) % self.num_line_elements == 0:
-
-            newton_status = self.__newton_step_impl (calibration_identifier = self.current_calib_id)
-            if newton_status:
-                rich.print(f"\n[bold magenta]Newton update step[/bold magenta]")
-                self.maximum_newton_steps -= 1
-                self.update_gaussian_scale_t = True
-
+    ## estimate Lipschtz constant and maximum stepsize
+    def estimate_step_size (self):
+        step_size = None
+        if type(self.focal_optimizer).__name__  == 'SGD':
+            calib_id = self.current_calib_id
+            for param_group in self.focal_optimizer.param_groups:
+                if param_group["name"] == "calibration_f_{}".format(calib_id):
+                    step_size = param_group["lr"]
         else:
+            focal_stack, focal_grad_stack = self.get_focal_statistics()
+            if focal_stack is None or len(focal_stack) == 0:
+                return None        
+            L = LineDetection(focal_stack, focal_grad_stack).estimate_Lipschitz_constant()
+            step_size = 1.0 / L
+        return step_size
 
-            self.update_gaussian_scale_t = False
 
-            if type(self.focal_optimizer).__name__ == 'LBFGS':
-                self.focal_optimizer.step(closure) # to use LBFGS
-            else:
-                self.focal_optimizer.step()
-
-
+    def focal_step(self):
+        self.__update_focal_gradients()        
+        self.focal_optimizer.step()
         (focal, focal_grad) = self.__update_focal_estimates (calibration_identifier = self.current_calib_id)
-        
+
         if self.num_line_elements > 0:
             self.focal_grad_stack.append(focal_grad)
             self.focal_stack.append(focal)
-
+        
         converged = ( np.abs(focal_grad) < 0.00001)
         return converged
+    
+
+    def undo_focal_step(self):
+
+        self.focal_grad_stack.pop()
+        prev_focal_normalized = self.focal_stack.pop()
+        prev_focal = prev_focal_normalized * self.focal_gradient_normalizer
+
+        calib_id = self.current_calib_id
+        cam_stack = self.calibration_groups[ calib_id ]
+        for viewpoint_cam in cam_stack:
+            viewpoint_cam.fx = prev_focal
+            viewpoint_cam.fy = viewpoint_cam.aspect_ratio * prev_focal
 
 
 
@@ -266,7 +241,7 @@ class CalibrationOptimizer:
                 param_group["lr"] = lr
             if scale is not None:
                 lr = param_group["lr"]
-                param_group["lr"] = scale * lr if lr >= 0.001 else lr
+                param_group["lr"] = scale * lr if lr >= 0.00001 else lr
             rich.print("[bold green]focal_optimizer: update learning rate to:[/bold green]", param_group["lr"])
 
 
@@ -277,7 +252,7 @@ class CalibrationOptimizer:
                 param_group["lr"] = lr
             if scale is not None:
                 lr = param_group["lr"]
-                param_group["lr"] = scale * lr if lr >= 0.0001 else lr
+                param_group["lr"] = scale * lr if lr >= 0.00001 else lr
             rich.print("[bold green]kappa_optimizer: update learning rate to:[/bold green]", param_group["lr"])
 
 
@@ -372,7 +347,12 @@ class LineDetection:
             newton_update = - self.ydata / self.hessian
             newton_est_opt = self.xdata + newton_update
             return newton_update, newton_est_opt
+        
 
+    # if g(x) = x^T A x + b x = c, then L = 2 \sigma_max (A)
+    # so, g(x) = ax^2 + bx + c, then L = 2a
+    def estimate_Lipschitz_constant (self):
+        return np.abs(self.hessian)
 
 
     def plot_figure (self, fname = pathlib.Path.home()/"focal_cost_function.pdf"):

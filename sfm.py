@@ -304,7 +304,7 @@ class SFM(mp.Process):
                 # Optimizer step
                 if self.require_calibration and iteration > 0 and iteration < 500 and iteration >= self.start_calib_iter:
                     print(f"focal step")
-                    self.calibration_optimizer.focal_step(loss)
+                    self.calibration_optimizer.focal_step()
                     if not frozen_states:
                         print(f"kappa step")
                         self.calibration_optimizer.kappa_step()
