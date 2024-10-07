@@ -50,7 +50,7 @@ class CalibrationOptimizer:
 
         self.FOCAL_LENGTH_RANGE = [0, 2000]
 
-        self.focal_gradient_normalizer = focal_reference if focal_reference is not None else viewpoint_stack[0].fx
+        self.focal_normalizer = focal_reference if focal_reference is not None else viewpoint_stack[0].fx
         
         
     def __init_calibration_groups(self):
@@ -118,9 +118,9 @@ class CalibrationOptimizer:
             for viewpoint_cam in cam_stack:
                 self.focal_delta_groups [ calib_id ].grad += viewpoint_cam.cam_focal_delta.grad
             
-            # focal_gradient_normalizer: is a guessed working focal length
+            # focal_normalizer: is a guessed working focal length
             # also normalize the gradient as per camera, to help with finding stable tuning parameters, as updates is implemented per camera
-            self.focal_delta_groups [ calib_id ].grad *= self.focal_gradient_normalizer #/ len(cam_stack)  # normalized_focal_grad = real_focal_grad * normalizer 
+            self.focal_delta_groups [ calib_id ].grad *= self.focal_normalizer #/ len(cam_stack)  # normalized_focal_grad = real_focal_grad * normalizer 
 
 
 
@@ -145,14 +145,14 @@ class CalibrationOptimizer:
         for calib_id, cam_stack in self.calibration_groups.items():
             if calib_id == calibration_identifier:
                 focal_delta_normalized = self.focal_delta_groups [ calib_id ].data.cpu().numpy()[0]
-                focal_delta = focal_delta_normalized * self.focal_gradient_normalizer  # real_focal = normalized_focal * normalizer
+                focal_delta = focal_delta_normalized * self.focal_normalizer  # real_focal = normalized_focal * normalizer
                 focal_grad_normalized  = self.focal_delta_groups [ calib_id ].grad.cpu().numpy()[0]
                 for viewpoint_cam in cam_stack:
                     focal = viewpoint_cam.fx
                     viewpoint_cam.fx += focal_delta
                     viewpoint_cam.fy += viewpoint_cam.aspect_ratio * focal_delta
                 print(f">> opt_focal: {viewpoint_cam.fx:.3f}, df: {focal_delta:.4f}, df_normalized: {focal_delta_normalized:.7f}, grad_normalized: {focal_grad_normalized:.7f}")
-                return focal/self.focal_gradient_normalizer, focal_grad_normalized
+                return focal/self.focal_normalizer, focal_grad_normalized
 
 
 
@@ -203,7 +203,7 @@ class CalibrationOptimizer:
 
         self.focal_grad_stack.pop()
         prev_focal_normalized = self.focal_stack.pop()
-        prev_focal = prev_focal_normalized * self.focal_gradient_normalizer
+        prev_focal = prev_focal_normalized * self.focal_normalizer
 
         calib_id = self.current_calib_id
         cam_stack = self.calibration_groups[ calib_id ]

@@ -444,8 +444,9 @@ class BackEnd(mp.Process):
                     self.push_to_frontend("init")
 
                 elif data[0] == "calibration_change":
+                    self.map(self.current_window, prune=True, calibrate=False, iters=10)
                     self.map(self.current_window, prune=False, calibrate=False, iters=10)
-                    self.map(self.current_window, prune=True, calibrate=False, iters=20)
+                    self.map(self.current_window, prune=True, calibrate=False, iters=1)
                     self.push_to_frontend()
                     rich.print("[bold red]Backend : calibration change signal recieved [/bold red]")
 

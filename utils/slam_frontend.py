@@ -394,7 +394,10 @@ class FrontEnd(mp.Process):
 
                 ###### test code block
                 if self.MODULE_TEST_CALIBRATION:
-                    if cur_frame_idx >= 100 and cur_frame_idx < 200:
+                    if cur_frame_idx < 100:
+                        viewpoint.calibration_identifier = 0
+                        focal_ref = None
+                    elif cur_frame_idx >= 100 and cur_frame_idx < 200:
                         viewpoint.calibration_identifier = 1
                         focal_ref = 400
                     elif cur_frame_idx >= 200 and cur_frame_idx < 300:
@@ -406,11 +409,8 @@ class FrontEnd(mp.Process):
                     elif cur_frame_idx >= 400 and cur_frame_idx < 500:
                         viewpoint.calibration_identifier = 4
                         focal_ref = 900
-                    elif cur_frame_idx >= 500 and cur_frame_idx < 600:
-                        viewpoint.calibration_identifier = 5
-                        focal_ref = 200
                     else:
-                        viewpoint.calibration_identifier = 0
+                        viewpoint.calibration_identifier = 4
                         focal_ref = None
                         
                 
@@ -435,11 +435,11 @@ class FrontEnd(mp.Process):
 
                 ###### test code block
                 if self.MODULE_TEST_CALIBRATION and self.signal_calibration_change:
-                        if focal_ref is not None:
-                            rich.print(f"[bold magenta]At Frame {viewpoint.uid}, change focal length (fx) to: [/bold magenta] {focal_ref} ")
+                    if focal_ref is not None:
+                        rich.print(f"[bold magenta]At Frame {viewpoint.uid}, change focal length (fx) to: [/bold magenta] {focal_ref} ")
                         viewpoint.fx = focal_ref
                         viewpoint.fy = viewpoint.aspect_ratio * focal_ref
-  
+
 
                 self.cameras[cur_frame_idx] = viewpoint
 
