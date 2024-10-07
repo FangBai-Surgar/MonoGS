@@ -4,95 +4,100 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from utils.slam_utils import image_gradient, image_gradient_mask
 from utils.config_utils import load_config
-
+from utils_cali.dataset_cali import load_dataset
+from munch import munchify
+from utils_cali.camera_cali_utils import CameraForCalibration as Camera
+import cv2
 
 
 # visualize the gradient mask
-def compute_grad_mask(original_image, config, edg_th=None, patch_size=32):
-    edge_threshold = config["Training"]["edge_threshold"]
+def update(replica_origin_dataset, replica_cali_dataset, replica_cali_16_45_dataset, cur_frame_idx):
+    viewpoint_origin = Camera.init_from_dataset(replica_origin_dataset, cur_frame_idx)
+    replica_origin_img = viewpoint_origin.original_image.cuda().cpu().numpy().transpose(1, 2, 0)  # Transpose to H, W, C
+    viewpoint_origin.compute_grad_mask(replica_config)
+    origin_grad_mask = viewpoint_origin.grad_mask.cpu().numpy()[0]  # Assuming single-channel mask, take the first slice
+    origin_grad_mask = np.repeat(origin_grad_mask[:, :, np.newaxis], 3, axis=2)  # Repeat along the third axis to make it 3-channel
 
-    gray_img = original_image.mean(dim=0, keepdim=True)
-    gray_grad_v, gray_grad_h = image_gradient(gray_img)
-    mask_v, mask_h = image_gradient_mask(gray_img)
-    gray_grad_v = gray_grad_v * mask_v
-    gray_grad_h = gray_grad_h * mask_h
-    img_grad_intensity = torch.sqrt(gray_grad_v**2 + gray_grad_h**2)
+    viewpoint_cali = Camera.init_from_dataset(replica_cali_dataset, cur_frame_idx)
+    replica_cali_img = viewpoint_cali.original_image.cuda().cpu().numpy().transpose(1, 2, 0)  # Transpose to H, W, C
+    viewpoint_cali.compute_grad_mask(replica_cali_config)
+    cali_grad_mask = viewpoint_cali.grad_mask.cpu().numpy()[0]  # Assuming single-channel mask, take the first slice
+    cali_grad_mask = np.repeat(cali_grad_mask[:, :, np.newaxis], 3, axis=2)  # Make 3-channel
 
-    if config["Dataset"]["type"] == "replica":
-        row, col = patch_size, patch_size
-        edge_threshold = edg_th if edg_th is not None else edge_threshold
-        multiplier = edge_threshold
-        _, h, w = original_image.shape
-        for r in range(row):
-            for c in range(col):
-                block = img_grad_intensity[
-                    :,
-                    r * int(h / row) : (r + 1) * int(h / row),
-                    c * int(w / col) : (c + 1) * int(w / col),
-                ]
-                th_median = block.median()
-                block[block > (th_median * multiplier)] = 1
-                block[block <= (th_median * multiplier)] = 0
-        print(int(h / row))
-        grad_mask = img_grad_intensity
-    elif config["Dataset"]["type"] == "simulated":
-        edg_th = edg_th if edg_th is not None else edge_threshold
-        print(f"Edge threshold: {edg_th}")
-        median_img_grad_intensity = img_grad_intensity.median()
-        grad_mask = (
-            img_grad_intensity > median_img_grad_intensity * edg_th
-        )
-    else:
-        median_img_grad_intensity = img_grad_intensity.median()
-        grad_mask = (
-            img_grad_intensity > median_img_grad_intensity * edge_threshold
-        )
-    return grad_mask
+    viewpoint_cali_16_45 = Camera.init_from_dataset(replica_cali_16_45_dataset, cur_frame_idx)
+    viewpoint_cali_16_45_img = viewpoint_cali_16_45.original_image.cuda().cpu().numpy().transpose(1, 2, 0)  # Transpose to H, W, C
+    viewpoint_cali_16_45.compute_grad_mask(replica_cali_config_16_45)
+    cali_grad_mask_16_45 = viewpoint_cali_16_45.grad_mask.cpu().numpy()[0]  # Assuming single-channel mask, take the first slice
+    cali_grad_mask_16_45 = np.repeat(cali_grad_mask_16_45[:, :, np.newaxis], 3, axis=2)  # Make 3-channel
 
-tum_img_path = "/datasets/tum/rgbd_dataset_freiburg3_long_office_household/rgb/1341847980.722988.png"
-tum_fr3_config_path = "./configs/rgbd/tum/fr3_office.yaml"
 
-simulated_img_path = "/datasets/mono-cali/image_sequence_1/FTF_00040.png"
-simulated_config_path = "./configs/mono/simulated/seq1.yaml"
+    # Resize both calibrated image and its gradient mask to match the origin image dimensions
+    replica_cali_img = cv2.resize(replica_cali_img, (replica_origin_img.shape[1], replica_origin_img.shape[0]))
+    cali_grad_mask = cv2.resize(cali_grad_mask, (replica_origin_img.shape[1], replica_origin_img.shape[0]))
+    replica_cali_16_45_img = cv2.resize(replica_cali_img, (replica_origin_img.shape[1], replica_origin_img.shape[0]))
+    cali_grad_mask_16_45 = cv2.resize(cali_grad_mask_16_45, (replica_origin_img.shape[1], replica_origin_img.shape[0]))
 
-replica_img_path = "/datasets/replica/office0/results/frame000492.jpg"
-replica_config_path = "./configs/rgbd/replica/office0.yaml"
+    return replica_origin_img, origin_grad_mask, replica_cali_img, cali_grad_mask, replica_cali_16_45_img, cali_grad_mask_16_45
 
-replica_cali_img_path = "/datasets/replica/office0_cali/results/frame000492.jpg"
-replica_cali_config_path = "./configs/mono/replica/office0.yaml"
 
-tum_config = load_config(tum_fr3_config_path)
+replica_config_path = "./configs/mono/replica_small/office4_sp.yaml"
+replica_cali_config_path = "./configs/mono/replica_small_cali/office4_sp.yaml"
+
+
 replica_config = load_config(replica_config_path)
+model_params_origin = munchify(replica_config["model_params"])
+replica_origin_dataset = load_dataset(model_params_origin, model_params_origin.source_path, config=replica_config)
+
 replica_cali_config = load_config(replica_cali_config_path)
-simulated_config = load_config(simulated_config_path)
+model_params = munchify(replica_cali_config["model_params"])
+replica_cali_dataset = load_dataset(model_params, model_params.source_path, config=replica_cali_config)
+
+replica_cali_config_16_45 = load_config(replica_cali_config_path)
+replica_cali_config_16_45["Dataset"]["grad_mask_row"] = 32
+replica_cali_config_16_45["Dataset"]["grad_mask_col"] = 32
+replica_cali_config_16_45["Training"]["edge_threshold"] = 3.2
+replica_cali_16_45_dataset = load_dataset(model_params, model_params.source_path, config=replica_cali_config_16_45)
 
 
-tum_img = np.array(Image.open(tum_img_path))
-tum = (
-    torch.from_numpy(tum_img / 255.0)
-    .clamp(0.0, 1.0)
-    .permute(2, 0, 1)
-    .to(device="cuda:0", dtype=torch.float32)
-)
-tum_grad_mask = compute_grad_mask(tum, tum_config)
 
-replica_img = np.array(Image.open(replica_img_path))
-replica = (
-    torch.from_numpy(replica_img / 255.0)
-    .clamp(0.0, 1.0)
-    .permute(2, 0, 1)
-    .to(device="cuda:0", dtype=torch.float32)
-)
-replica_grad_mask = compute_grad_mask(replica, replica_config)
+cur_frame_idx = 0
 
-replica_cali_img = np.array(Image.open(replica_cali_img_path))
-replica_cali = (
-    torch.from_numpy(replica_cali_img / 255.0)
-    .clamp(0.0, 1.0)
-    .permute(2, 0, 1)
-    .to(device="cuda:0", dtype=torch.float32)
-)
-replica_cali_grad_mask = compute_grad_mask(replica_cali, replica_cali_config)
+
+
+    
+images = update(replica_origin_dataset, replica_cali_dataset, replica_cali_16_45_dataset, cur_frame_idx)
+print(images[0].shape, images[1].shape, images[2].shape, images[3].shape)
+# Window setup
+
+cv2.namedWindow('Image Viewer', cv2.WINDOW_NORMAL)
+
+while True:
+    # Display images in a single window
+    combined_img = np.vstack([
+        np.hstack([images[0], images[1]]),  # Top row: original image and its gradient mask
+        np.hstack([images[3], images[2]]),   # Bottom row: calibrated image and its gradient mask
+        np.hstack([images[4], images[5]])   # Bottom row: calibrated image and its gradient mask
+    ])
+    cv2.imshow('Image Viewer', combined_img)
+    
+    # Wait for key press
+    key = cv2.waitKey(0)
+    print(f"Key pressed: {key}")
+    
+    if key == 27:  # ESC key to exit
+        break
+    elif key == 83:  # Right arrow key (key code may vary; check cv2 documentation)
+        cur_frame_idx += 1  # Move to the next frame
+        images = update(replica_origin_dataset, replica_cali_dataset, replica_cali_16_45_dataset, cur_frame_idx)
+    elif key == 81:  # Left arrow key (key code may vary; check cv2 documentation)
+        cur_frame_idx -= 1 if cur_frame_idx >1 else 0 # Move to the previous frame
+        images = update(replica_origin_dataset, replica_cali_dataset, replica_cali_16_45_dataset, cur_frame_idx)
+        if cur_frame_idx >= 600:
+            cur_frame_idx = 0  # Reset to first frame if we exceed the range
+
+cv2.destroyAllWindows()
+
+
 
 # simulated_img = np.array(Image.open(simulated_img_path))
 # simulated = (
