@@ -165,7 +165,9 @@ class Camera(nn.Module):
         img_grad_intensity = torch.sqrt(gray_grad_v**2 + gray_grad_h**2)
 
         if config["Dataset"]["type"] == "replica":
-            row, col = 32, 32
+            row, col = config["Dataset"]["grad_mask_row"], config["Dataset"]["grad_mask_col"]
+            # row, col = 16, 16
+            # row, col = 32, 32
             multiplier = edge_threshold
             _, h, w = self.original_image.shape
             for r in range(row):

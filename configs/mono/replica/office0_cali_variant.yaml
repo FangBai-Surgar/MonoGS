@@ -18,3 +18,7 @@ Dataset:
     height: 680
     depth_scale: 6553.5
     distorted: False
+  grad_mask_row: 32
+  grad_mask_col: 32
+Training:
+  edge_threshold: 3.5

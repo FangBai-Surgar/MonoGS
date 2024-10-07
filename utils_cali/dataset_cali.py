@@ -237,8 +237,8 @@ def load_dataset(args, path, config):
     elif config["Dataset"]["type"] == "replica":
         print("replica")
         dataset = ReplicaDataset(args, path, config)
-        dataset.num_imgs = dataset.num_imgs
-        # dataset.num_imgs = 1200 if dataset.num_imgs > 1200 else dataset.num_imgs
+        # dataset.num_imgs = dataset.num_imgs
+        dataset.num_imgs = 600 if dataset.num_imgs > 600 else dataset.num_imgs
         dataset.focal_changed = False
         return dataset
     elif config["Dataset"]["type"] == "euroc":
