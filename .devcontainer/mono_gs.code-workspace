@@ -188,7 +188,25 @@
 					"configs/stereo/euroc/mh02.yaml",
 					"configs/live/realsense.yaml",
 				],
-				"default": "configs/mono/replica/office0_cali_600.yaml",
+				"default": "configs/mono/replica/office0_cali_variant.yaml",
+			},
+			{
+				"id": "mono_replica_cali_config_file",
+				"type": "pickString",
+				"description": "config file",
+				"options": [
+					"configs/mono/replica_cali/office0.yaml",
+					"configs/mono/replica_cali/office0_sp.yaml",
+					// "configs/mono/replica_cali/office1.yaml",
+					// "configs/mono/replica_cali/office1_sp.yaml",					
+					// "configs/mono/replica_cali/office2.yaml",
+					// "configs/mono/replica_cali/office2_sp.yaml",
+					// "configs/mono/replica_cali/office3.yaml",
+					// "configs/mono/replica_cali/office3_sp.yaml",
+					"configs/mono/replica_cali/office4.yaml",					
+					"configs/mono/replica_cali/office4_sp.yaml",
+				],
+				"default": "configs/mono/replica_cali/office4_sp.yaml",
 			},
 			{
 				"id": "require_calibration",
@@ -216,6 +234,15 @@
 				"label": "update workspace",
 				"type": "shell",
 				"command": "vcs import /workspaces/src < /workspaces/src/hyperion_dev/.devcontainer/hyper.repos"
+			},
+			{
+				"label": "run slam_cali",
+				"type": "shell",
+				"command": "zsh",
+				"args": [
+					"-c",
+					"source activate MonoGS && cd /workspaces/src/MonoGS_dev && python slam_cali.py --config ${input:mono_replica_cali_config_file} ${input:eval_or_not} ${input:require_calibration} ${input:allow_lens_distortion}",
+				]
 			},
 			{
 				"label": "build gtsam selfCalibration",
