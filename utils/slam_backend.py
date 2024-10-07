@@ -444,8 +444,9 @@ class BackEnd(mp.Process):
                     self.push_to_frontend("init")
 
                 elif data[0] == "calibration_change":
+                    self.map(self.current_window, prune=True, calibrate=False, iters=10)
                     self.map(self.current_window, prune=False, calibrate=False, iters=10)
-                    self.map(self.current_window, prune=True, calibrate=False, iters=20)
+                    self.map(self.current_window, prune=True, calibrate=False, iters=1)
                     self.push_to_frontend()
                     rich.print("[bold red]Backend : calibration change signal recieved [/bold red]")
 
@@ -537,9 +538,8 @@ class BackEnd(mp.Process):
                         W = viewpoint.image_width
                         focal_ref = np.sqrt(H*H + W*W)/2
                         rich.print("[bold green]calibration optimizer[/bold green]. current_window: ", current_window)    
-                        self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack, focal_ref)
-                        self.calibration_optimizers.maximum_newton_steps = 0 # diable newton update
-                        self.calibration_optimizers.num_line_elements = 0 # diasable saving sample points for line fitting                                      
+                        self.calibration_optimizers = CalibrationOptimizer(calib_opt_frames_stack, focal_ref, focal_optimizer_type="Adam")
+                        self.calibration_optimizers.num_line_elements = 0 # sample points for line fitting
                     else:
                         self.calibration_optimizers = None
 
@@ -548,7 +548,7 @@ class BackEnd(mp.Process):
                     ### The order of following three matters a lot! ###
                     if self.calibration_optimizers is not None:
                         if (calibration_identifier_cnt < 2): # Don't update 3D structure with one view
-                            self.calibration_optimizers.update_focal_learning_rate(lr = 0.005)
+                            self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)
                             self.map(self.current_window, calibrate=True, fix_gaussian=True,  iters=iter_per_kf*3)
                         else:
                             self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)
