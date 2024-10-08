@@ -5,10 +5,9 @@ import torch
 import torch.multiprocessing as mp
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 from gaussian_splatting.utils.graphics_utils import BasicPointCloud
-
-
 from gaussian_splatting.scene.gaussian_model_GS import GaussianModel
 from gaussian_splatting.scene.cameras import Camera
 from gui import gui_utils, sfm_gui
@@ -125,19 +124,33 @@ if __name__ == "__main__":
             sparse_depth_stack = reconstruction.getSparseDepthFromImage(image_id = cam.uid, downsample_scale = downsample_scale )
             rgb_raw = (cam.original_image *255).byte().permute(1, 2, 0).contiguous().cpu().numpy()
 
-            # use depth prediction from a Neural network        
-            depth_raw = DA.eval(rgb_raw)
+            # use depth prediction from a Neural network
+            disp_raw = DA.eval(rgb_raw)
+            depth_raw = 10.0 / disp_raw  # depth = (focal * baseline) / disparity
+            depth_rect = DA.correct_depth_from_sparse_points (depth=depth_raw, uv_depth_stack=sparse_depth_stack)
+
             scale = DA.estimateScaleFactor(depth=depth_raw, uv_depth_stack=sparse_depth_stack)
-            depth_raw *= scale
-            print(f"depth scale correction = {scale}")
+            depth_rect = depth_raw * scale
+            # print(f"depth scale correction = {scale}")
+
+            if True:
+                plt.rcParams["figure.figsize"] = (15, 6)
+                fig, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3)
+                ax1.imshow(rgb_raw)
+                ax2.imshow(depth_raw)
+                ax3.imshow(depth_rect)
+                plt.show()
+
 
             # RGB-D image to pcd in world frame
             rgb = o3d.geometry.Image(rgb_raw.astype(np.uint8))
-            depth = o3d.geometry.Image(depth_raw.astype(np.float32))
+            depth = o3d.geometry.Image(depth_rect.astype(np.float32))
             new_xyz, new_rgb = gaussians.create_pcd_from_image_and_depth(cam, rgb, depth, downsample_factor = pcd_downsample_factor)
             
             positions = np.concatenate((positions, new_xyz), axis=0) if positions is not None else new_xyz
             colors = np.concatenate((colors, new_rgb), axis=0) if colors is not None else new_rgb
+    
+    
 
 
     pcd = BasicPointCloud(points=positions, colors=colors, normals=None)
