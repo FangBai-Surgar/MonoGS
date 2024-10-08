@@ -16,6 +16,15 @@ def render_mesh(input_mesh,
     """
     open3d.visualization.rendering.OffscreenRenderer
     https://www.open3d.org/docs/latest/python_api/open3d.visualization.rendering.OffscreenRenderer.html
+
+        Parameters:
+            input_mesh (): 
+                1) an open3d triangle mesh object : open3d.geometry.TriangleMesh or 
+                2) a mesh file
+
+        Returns:
+            color_image (np.ndarray): shape(H, W, 3)
+            depth_image (np.ndarray): shape(H, W)
     """
 
     if isinstance(input_mesh, str):
@@ -23,9 +32,7 @@ def render_mesh(input_mesh,
     elif isinstance(input_mesh, o3d.geometry.TriangleMesh):
         mesh = input_mesh
     else:
-        print(f"wrong argument for input_mesh type: {type(input_mesh)}")
-        return None, None
-
+        raise TypeError("Unsupoorted argument for input_mesh type: ", type(input_mesh), "Expected input: an open3d mesh object or a mesh file.")
 
     o3d_renderer = rendering.OffscreenRenderer(width, height)
     o3d_renderer.scene.set_background([0.0, 0.0, 0.0, 1.0])
@@ -127,6 +134,7 @@ if __name__ == "__main__":
 
     #### RENDER DATA
 
+    print(render_mesh.__doc__)
 
     # use mesh file path
     (rgb_img, depth_img) = render_mesh (mesh_file_path_name, pose, fx, fy, cx, cy, width = W, height = H)
@@ -134,8 +142,7 @@ if __name__ == "__main__":
     # use o3d mesh object (has self-added color)
     (rgb_img, depth_img) = render_mesh (mesh, pose, fx, fy, cx, cy, width = W, height = H)
 
-
-
+    
     if rgb_img is not None and depth_img is not None:
         
         color = cv2.cvtColor(rgb_img, cv2.COLOR_RGBA2BGRA)
