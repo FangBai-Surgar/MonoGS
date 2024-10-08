@@ -313,13 +313,8 @@ class BackEnd(mp.Process):
                     gaussian_split = True
 
                 # Calibration update. only do calibration if slam has been initialized.
-                # Here we assume a good focal initialization has been attained in frontend PnP module, by fixing 3D Gaussians and poses and then optimizing focal only
-                # this function will perform prune, before doing Bundle adjustment. Thus it is not a good idea to perform calibration immediately
                 if calibrate and self.require_calibration and self.initialized:
                     if (self.calibration_optimizers is not None) and (not prune) and (not gaussian_split):
-                        if iters >= 100:
-                            lr = lr_exp_decay_helper(step=cur_itr, lr_init=0.01, lr_final=1e-4, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=iters)
-                            self.calibration_optimizers.update_focal_learning_rate(lr = lr, scale = None)
                         self.calibration_optimizers.focal_step()
                         if self.allow_lens_distortion and cur_itr > 2:
                             self.calibration_optimizers.kappa_step()
@@ -533,7 +528,6 @@ class BackEnd(mp.Process):
 
                     
                     if self.require_calibration and self.initialized and calibration_identifier_cnt >= 1 and current_calibration_identifier != 0:
-                        # self.viewpoint_refinement(self.current_window, iters=50)
                         H = viewpoint.image_height
                         W = viewpoint.image_width
                         focal_ref = np.sqrt(H*H + W*W)/2
@@ -545,7 +539,7 @@ class BackEnd(mp.Process):
 
                     iters = int(iter_per_kf/2) if self.calibration_optimizers is not None else iter_per_kf
 
-                    ### The order of following three matters a lot! ###
+                    ### The order of following three matters. prune goes last ###
                     if self.calibration_optimizers is not None:
                         if (calibration_identifier_cnt < 2): # Don't update 3D structure with one view
                             self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)
