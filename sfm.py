@@ -94,6 +94,7 @@ class SFM(mp.Process):
         self.allow_lens_distortion = True        
         self.add_calib_noise_iter = -1
         self.start_calib_iter = 200
+        self.stop_calib_iter = 300
 
         self.cameras_extent = cameras_extent
 
@@ -302,7 +303,7 @@ class SFM(mp.Process):
 
 
                 # Optimizer step
-                if self.require_calibration and iteration > 0 and iteration < 500 and iteration >= self.start_calib_iter:
+                if self.require_calibration and iteration > 0 and iteration < self.stop_calib_iter and iteration >= self.start_calib_iter:
                     print(f"focal step")
                     self.calibration_optimizer.focal_step()
                     if not frozen_states:

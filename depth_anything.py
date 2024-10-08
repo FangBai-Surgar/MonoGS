@@ -45,6 +45,14 @@ class DepthAnything:
             disparity: np.array   H*W
         """
         disparity = self.model.infer_image(raw_img) # HxW raw depth map in numpy
+
+        # range1 = np.minimum (disparity.max() / (disparity.min() + 0.001), 100.0)
+        # max1 = disparity.max()
+        # min1 = max1 / range1        
+        # depth1 = 1 / np.maximum (disparity, min1)
+        # depth1 = (depth1 - depth1.min()) / (depth1.max() - depth1.min())
+        # depth1 = np.power (depth1, 1.0 / 2.2) # optional gamma correction
+
         return disparity
     
     @staticmethod

@@ -113,7 +113,7 @@ if __name__ == "__main__":
     if use_pcd_from_colmap_sparse:
         positions, colors = reconstruction.getPointCloud()
 
-    pcd_downsample_factor = viewpoint_stack[0].image_height * viewpoint_stack[0].image_width * len(viewpoint_stack) / 10000
+    pcd_downsample_factor = viewpoint_stack[0].image_height * viewpoint_stack[0].image_width * len(viewpoint_stack) / 40000
 
     if use_pcd_from_depth_prediction:
 
@@ -127,13 +127,15 @@ if __name__ == "__main__":
             # use depth prediction from a Neural network
             disp_raw = DA.eval(rgb_raw)
             depth_raw = 10.0 / disp_raw  # depth = (focal * baseline) / disparity
-            depth_rect = DA.correct_depth_from_sparse_points (depth=depth_raw, uv_depth_stack=sparse_depth_stack)
+
+            # depth_rect = DA.correct_depth_from_sparse_points (depth=depth_raw, uv_depth_stack=sparse_depth_stack)
 
             scale = DA.estimateScaleFactor(depth=depth_raw, uv_depth_stack=sparse_depth_stack)
             depth_rect = depth_raw * scale
-            # print(f"depth scale correction = {scale}")
+            print(f"depth scale correction = {scale}, rgb_raw.shape = {rgb_raw.shape} depth_raw.shape = {depth_raw.shape}, depth_rect.shape = {depth_rect.shape}")
 
-            if True:
+
+            if False:
                 plt.rcParams["figure.figsize"] = (15, 6)
                 fig, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3)
                 ax1.imshow(rgb_raw)
