@@ -629,25 +629,33 @@ class FrontEnd(mp.Process):
                 image_scale_t = image
                 gt_image_scale_t = gt_image
 
-            calibration_optimizers.zero_grad(set_to_none=True)
+            
             huber_loss_function = torch.nn.SmoothL1Loss(reduction = 'mean', beta = beta) # beta = 0, this becomes l1 loss
             loss = huber_loss_function(image_scale_t*mask, gt_image_scale_t*mask)
-            loss.backward()
-
-            # rich.print(f"[bold red]loss: [/bold red] {loss:.10f}")
+            
+            # print(f"focal_init: iter: [{itr}]")
             if step_safe_guard and (loss > loss_prev):
                 rich.print(f"[bold yellow][Warning]: learning rate is too big! revoke previous step and shrink learning rate[/bold yellow]")
+                # print(f"loss_prev = {loss_prev},   loss = {loss},   current_fx = {viewpoint.fx}")
                 calibration_optimizers.undo_focal_step()
+                # print(f"\t after revoling, current_fx = {viewpoint.fx}")
                 calibration_optimizers.update_focal_learning_rate(scale=0.5)
+                with torch.no_grad():
+                    calibration_optimizers.focal_step() # step again with old gradient
+                # print(f"\t update to,      current_fx = {viewpoint.fx}\n")
                 continue
 
-            loss_prev = loss
+            if loss < loss_prev:
+                loss_prev = loss
 
+            # clear old gradient, and compute new gradient
+            calibration_optimizers.zero_grad(set_to_none=True)
+            loss.backward()
+            
             with torch.no_grad():
                 converged = calibration_optimizers.focal_step() # optimize focal only
-                
-            if converged:
-                break
+                if converged:
+                    break
 
         return calibration_optimizers.estimate_step_size()
     

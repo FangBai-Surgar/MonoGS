@@ -83,11 +83,13 @@ if __name__ == "__main__":
 
 
     image_dir = "/home/fang/SURGAR/Colmap_Test/Fountain/images"
+    '''
+    2759.48 0 1520.69
+    0 2764.16 1006.81
+    '''
     
     use_pcd_from_colmap_sparse = True
-    use_pcd_from_depth_prediction = True
-
-
+    use_pcd_from_depth_prediction = False
 
 
     # perform colmap reconstruction
@@ -187,8 +189,19 @@ if __name__ == "__main__":
     print(f"Run with image W: { viewpoint_stack[0].image_width },  H: { viewpoint_stack[0].image_height }")
 
     sfm = SFM(pipe, q_main2vis, q_vis2main, use_gui, viewpoint_stack, gaussians, opt, cameras_extent)
-    sfm.add_calib_noise_iter = -1
+    sfm.MODULE_TEST_CALIBRATION = False
+
+
     sfm.start_calib_iter = 100
+    sfm.stop_calib_iter = 300
+
+    sfm.start_pose_iter = 50
+    sfm.stop_pose_iter = 300
+
+    sfm.start_gaussian_iter = 0
+    sfm.stop_gaussian_iter = 100000
+
+
     sfm.require_calibration = True
     sfm.allow_lens_distortion = True
     

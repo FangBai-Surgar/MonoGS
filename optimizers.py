@@ -200,6 +200,8 @@ class CalibrationOptimizer:
     
 
     def undo_focal_step(self):
+        if self.focal_stack is None or len(self.focal_stack) == 0:
+            return
 
         self.focal_grad_stack.pop()
         prev_focal_normalized = self.focal_stack.pop()
