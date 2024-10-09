@@ -143,6 +143,12 @@ class SFM(mp.Process):
     def compute_loss (self, frozen_states = False, use_SSIM = False):
         # Loss function
         loss = 0.0
+
+        self.viewspace_point_tensor_acm = []
+        self.visibility_filter_acm = []
+        self.radii_acm = []
+        self.n_touched_acm = []
+
         for viewpoint in self.viewpoint_stack:
 
             render_pkg = render(viewpoint, self.gaussians, self.pipe, self.background,
@@ -177,10 +183,33 @@ class SFM(mp.Process):
 
             # enable SSIM loss when a good intialial reconstruction is attained
             if use_SSIM:
-                loss += self.opt.lambda_dssim * (1.0 - ssim(image*mask, gt_image*mask))        
+                loss += self.opt.lambda_dssim * (1.0 - ssim(image*mask, gt_image*mask))
 
-        return loss, viewspace_point_tensor, visibility_filter, radii, opacity, n_touched 
+            self.viewspace_point_tensor_acm.append(viewspace_point_tensor)
+            self.visibility_filter_acm.append(visibility_filter)
+            self.radii_acm.append(radii)
+            self.n_touched_acm.append(n_touched)
+
+
+        return loss
     
+
+
+
+    def set_gaussian_densification_stats (self):
+
+        for idx in range(len(self.viewspace_point_tensor_acm)):
+
+            self.gaussians.max_radii2D[self.visibility_filter_acm[idx]] = torch.max(
+                self.gaussians.max_radii2D[self.visibility_filter_acm[idx]],
+                self.radii_acm[idx][self.visibility_filter_acm[idx]],
+            )
+            self.gaussians.add_densification_stats(
+                self.viewspace_point_tensor_acm[idx], self.visibility_filter_acm[idx]
+            )
+
+            # self.gaussians.max_radii2D[visibility_filter] = torch.max(self.gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
+            # self.gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
 
 
 
@@ -283,7 +312,7 @@ class SFM(mp.Process):
                 self.gaussians.oneupSHdegree()
 
             # FORWARD
-            (loss, viewspace_point_tensor, visibility_filter, radii, opacity, n_touched) = self.compute_loss (
+            loss = self.compute_loss (
                     frozen_states = frozen_states,
                     use_SSIM = (iteration > self.stop_calib_iter) )
 
@@ -301,7 +330,7 @@ class SFM(mp.Process):
                     if (not undo_prev):
                         undo_prev = True
                         # recompute the loss, as Gaussian/pose update may have changed it
-                        (loss_prev, viewspace_point_tensor, visibility_filter, radii, opacity, n_touched) = self.compute_loss (
+                        loss_prev = self.compute_loss (
                                 frozen_states = frozen_states,
                                 use_SSIM = (iteration > self.stop_calib_iter) )
                     # verify the loss again
@@ -326,7 +355,6 @@ class SFM(mp.Process):
             loss.backward()
 
 
-
             with torch.no_grad():
                 # Progress bar
                 ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
@@ -338,9 +366,8 @@ class SFM(mp.Process):
 
                 # Densification
                 if True and iteration < self.opt.densify_until_iter:
-                    # Keep track of max radii in image-space for pruning
-                    self.gaussians.max_radii2D[visibility_filter] = torch.max(self.gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
-                    self.gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
+
+                    self.set_gaussian_densification_stats()
 
                     if iteration > self.opt.densify_from_iter and iteration % self.opt.densification_interval == 0:
                         sfm_gui.Log("Densify and Prune Gaussians", tag="SFM")
