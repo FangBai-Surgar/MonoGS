@@ -117,7 +117,7 @@ if __name__ == "__main__":
 
     opt.iterations = 5000
     opt.densification_interval = 50
-    opt.opacity_reset_interval = 350
+    opt.opacity_reset_interval = 750
     opt.densify_from_iter = 49
     opt.densify_until_iter = 4000
     opt.densify_grad_threshold = 0.0002
@@ -129,19 +129,30 @@ if __name__ == "__main__":
     
     https://cvg-data.inf.ethz.ch/
 
-    https://cvg-data.inf.ethz.ch/local-feature-evaluation-schoenberger2017
-
     """
 
+    data_url = "https://cvg-data.inf.ethz.ch/local-feature-evaluation-schoenberger2017/South-Building.zip"
+    '''
+    ground_truth (not provided)
+    128 images of the “South” building at UNC Chapel Hill. The images are taken with the same camera, kindly provided by Christopher Zach.
+    '''
 
-    fountain_data_url = "https://cvg-data.inf.ethz.ch/local-feature-evaluation-schoenberger2017/Strecha-Fountain.zip"
-    image_dir = "/home/fang/SURGAR/Colmap_Test/Fountain/images"
+    data_url = "https://cvg-data.inf.ethz.ch/local-feature-evaluation-schoenberger2017/Strecha-Herzjesu.zip"
+    image_dir = "/hdd/sfm/Strecha-Herzjesu/Herzjesu/images"
     '''
     ground_truth calibration:
         2759.48 0 1520.69
         0 2764.16 1006.81
     '''
     
+    data_url = "https://cvg-data.inf.ethz.ch/local-feature-evaluation-schoenberger2017/Strecha-Fountain.zip"
+    image_dir = "/hdd/sfm/Strecha-Fountain/Fountain/images"
+    '''
+    ground_truth calibration:
+        2759.48 0 1520.69
+        0 2764.16 1006.81
+    '''
+
 
     use_pcd_from_depth_prediction = True
 
@@ -193,7 +204,7 @@ if __name__ == "__main__":
 
     # From dense depth prediction of a neural network
     if use_pcd_from_depth_prediction:
-        positions, colors = init_dense_pcd_from_network(viewpoint_stack, reconstruction, num_points = 100000)
+        positions, colors = init_dense_pcd_from_network(viewpoint_stack, reconstruction, num_points = 50000)
         sfm.add_dense_point_cloud(positions=positions, colors=colors)
 
 
@@ -201,16 +212,16 @@ if __name__ == "__main__":
 
     
 
-    sfm.start_calib_iter = 1300
+    sfm.start_calib_iter = 250
     sfm.stop_calib_iter = 500
 
-    sfm.start_pose_iter = 1100
+    sfm.start_pose_iter = 200
     sfm.stop_pose_iter = 500
 
     sfm.start_gaussian_iter = 0
     sfm.stop_gaussian_iter = 100000
 
-    sfm.add_dense_pcd_iter = max(sfm.stop_calib_iter, sfm.stop_pose_iter) + 1
+    sfm.add_dense_pcd_iter = 1000
 
 
     sfm.require_calibration = True

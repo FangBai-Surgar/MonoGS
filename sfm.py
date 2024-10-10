@@ -299,6 +299,10 @@ class SFM(mp.Process):
                     viewpoint_cam.fy = viewpoint_cam.aspect_ratio * focal
                     viewpoint_cam.kappa = 0.0
 
+                self.calibration_optimizer = CalibrationOptimizer(self.viewpoint_stack, focal_reference = self.focal_reference, focal_optimizer_type = "Adam")
+                self.calibration_optimizer.update_focal_learning_rate (lr = 0.1)
+                self.calib_safe_guard = False
+
                 if self.use_gui:
                     cam_cnt = (cam_cnt+1) % len(self.viewpoint_stack)
                     self.push_to_gui(cam_cnt)
