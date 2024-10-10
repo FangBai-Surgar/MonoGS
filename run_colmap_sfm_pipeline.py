@@ -33,9 +33,9 @@ from colmap import assemble_3DGS_cameras
 
 
 
-def init_dense_pcd_from_network (viewpoint_stack, num_points_per_image = 20000):
+def init_dense_pcd_from_network (viewpoint_stack, num_points = 20000):
 
-    pcd_downsample_factor = viewpoint_stack[0].image_height * viewpoint_stack[0].image_width * len(viewpoint_stack) / num_points_per_image
+    pcd_downsample_factor = viewpoint_stack[0].image_height * viewpoint_stack[0].image_width * len(viewpoint_stack) / num_points
 
     DA = DepthAnything()
 
@@ -70,7 +70,7 @@ def init_dense_pcd_from_network (viewpoint_stack, num_points_per_image = 20000):
         # RGB-D image to pcd in world frame
         rgb = o3d.geometry.Image(rgb_raw.astype(np.uint8))
         depth = o3d.geometry.Image(depth_rect.astype(np.float32))
-        new_xyz, new_rgb = gaussians.create_pcd_from_image_and_depth(cam, rgb, depth, downsample_factor = pcd_downsample_factor)
+        new_xyz, new_rgb = GaussianModel.create_pcd_from_image_and_depth(cam, rgb, depth, downsample_factor = pcd_downsample_factor)
         
         positions = np.concatenate((positions, new_xyz), axis=0) if positions is not None else new_xyz
         colors = np.concatenate((colors, new_rgb), axis=0) if colors is not None else new_rgb
@@ -134,7 +134,7 @@ if __name__ == "__main__":
     0 2764.16 1006.81
     '''
     
-    use_pcd_from_colmap_sparse = True
+
     use_pcd_from_depth_prediction = True
 
 
@@ -153,22 +153,18 @@ if __name__ == "__main__":
     gaussians.spatial_lr_scale = cameras_extent
     
 
-    positions = None
-    colors = None
-
-    if use_pcd_from_colmap_sparse:
-        positions, colors = reconstruction.getPointCloud()
-
-
-
+    # From Sparse Colmap output
+    positions, colors = reconstruction.getPointCloud()
     pcd = BasicPointCloud(points=positions, colors=colors, normals=None)
     gaussians.create_from_pcd(pcd, cameras_extent)
+    gaussians.training_setup(opt)
 
-
+    # From dense depth prediction of a neural network
     if use_pcd_from_depth_prediction:
-        positions, colors = init_dense_pcd_from_network(viewpoint_stack, num_points_per_image = 10000)
-        pcd_dense = BasicPointCloud(points=positions, colors=colors, normals=None)
-        print(pcd, pcd.points, pcd.colors)
+        positions, colors = init_dense_pcd_from_network(viewpoint_stack, num_points = 20000)
+        pcd = BasicPointCloud(points=positions, colors=colors, normals=None)
+        gaussians.extend_from_pcd(pcd, point_size=1.0)
+        gaussians.training_setup(opt)
 
 
 
@@ -202,10 +198,10 @@ if __name__ == "__main__":
     sfm.MODULE_TEST_CALIBRATION = False
 
 
-    sfm.start_calib_iter = 300
+    sfm.start_calib_iter = 1300
     sfm.stop_calib_iter = 500
 
-    sfm.start_pose_iter = 100
+    sfm.start_pose_iter = 1100
     sfm.stop_pose_iter = 500
 
     sfm.start_gaussian_iter = 0
