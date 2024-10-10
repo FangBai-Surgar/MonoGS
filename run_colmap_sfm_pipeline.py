@@ -33,6 +33,52 @@ from colmap import assemble_3DGS_cameras
 
 
 
+def init_dense_pcd_from_network (viewpoint_stack, num_points_per_image = 20000):
+
+    pcd_downsample_factor = viewpoint_stack[0].image_height * viewpoint_stack[0].image_width * len(viewpoint_stack) / num_points_per_image
+
+    DA = DepthAnything()
+
+    positions = None
+    colors = None
+
+    for cam in viewpoint_stack:
+
+        sparse_depth_stack = reconstruction.getSparseDepthFromImage(image_id = cam.uid, downsample_scale = downsample_scale )
+        rgb_raw = (cam.original_image *255).byte().permute(1, 2, 0).contiguous().cpu().numpy()
+
+        # use depth prediction from a Neural network
+        disp_raw = DA.eval(rgb_raw)
+        depth_raw = 10.0 / disp_raw  # depth = (focal * baseline) / disparity
+
+        # depth_rect = DA.correct_depth_from_sparse_points (depth=depth_raw, uv_depth_stack=sparse_depth_stack)
+
+        scale = DA.estimateScaleFactor(depth=depth_raw, uv_depth_stack=sparse_depth_stack)
+        depth_rect = depth_raw * scale
+        print(f"depth scale correction = {scale}, rgb_raw.shape = {rgb_raw.shape} depth_raw.shape = {depth_raw.shape}, depth_rect.shape = {depth_rect.shape}")
+
+
+        if False:
+            plt.rcParams["figure.figsize"] = (15, 6)
+            fig, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3)
+            ax1.imshow(rgb_raw)
+            ax2.imshow(depth_raw)
+            ax3.imshow(depth_rect)
+            plt.show()
+
+
+        # RGB-D image to pcd in world frame
+        rgb = o3d.geometry.Image(rgb_raw.astype(np.uint8))
+        depth = o3d.geometry.Image(depth_rect.astype(np.float32))
+        new_xyz, new_rgb = gaussians.create_pcd_from_image_and_depth(cam, rgb, depth, downsample_factor = pcd_downsample_factor)
+        
+        positions = np.concatenate((positions, new_xyz), axis=0) if positions is not None else new_xyz
+        colors = np.concatenate((colors, new_rgb), axis=0) if colors is not None else new_rgb
+
+    return positions, colors
+
+
+
 
 if __name__ == "__main__":
 
@@ -89,7 +135,7 @@ if __name__ == "__main__":
     '''
     
     use_pcd_from_colmap_sparse = True
-    use_pcd_from_depth_prediction = False
+    use_pcd_from_depth_prediction = True
 
 
     # perform colmap reconstruction
@@ -98,11 +144,9 @@ if __name__ == "__main__":
     # extract reconstruction information: 1. posedCameras, 2. 3Dpointcloud
     downsample_scale = 2**2
     viewpoint_stack, scale_info = assemble_3DGS_cameras(reconstruction,  downsample_scale = downsample_scale,  use_same_calib = True)
-    
-    
+        
     print(f"scale_info = {scale_info}")
     cameras_extent = scale_info["radius"]
-
 
     # initialize 3D Gaussians
     gaussians = GaussianModel(sh_degree=0)
@@ -115,50 +159,16 @@ if __name__ == "__main__":
     if use_pcd_from_colmap_sparse:
         positions, colors = reconstruction.getPointCloud()
 
-    pcd_downsample_factor = viewpoint_stack[0].image_height * viewpoint_stack[0].image_width * len(viewpoint_stack) / 40000
-
-    if use_pcd_from_depth_prediction:
-
-        DA = DepthAnything()
-
-        for cam in viewpoint_stack:
-
-            sparse_depth_stack = reconstruction.getSparseDepthFromImage(image_id = cam.uid, downsample_scale = downsample_scale )
-            rgb_raw = (cam.original_image *255).byte().permute(1, 2, 0).contiguous().cpu().numpy()
-
-            # use depth prediction from a Neural network
-            disp_raw = DA.eval(rgb_raw)
-            depth_raw = 10.0 / disp_raw  # depth = (focal * baseline) / disparity
-
-            # depth_rect = DA.correct_depth_from_sparse_points (depth=depth_raw, uv_depth_stack=sparse_depth_stack)
-
-            scale = DA.estimateScaleFactor(depth=depth_raw, uv_depth_stack=sparse_depth_stack)
-            depth_rect = depth_raw * scale
-            print(f"depth scale correction = {scale}, rgb_raw.shape = {rgb_raw.shape} depth_raw.shape = {depth_raw.shape}, depth_rect.shape = {depth_rect.shape}")
-
-
-            if False:
-                plt.rcParams["figure.figsize"] = (15, 6)
-                fig, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3)
-                ax1.imshow(rgb_raw)
-                ax2.imshow(depth_raw)
-                ax3.imshow(depth_rect)
-                plt.show()
-
-
-            # RGB-D image to pcd in world frame
-            rgb = o3d.geometry.Image(rgb_raw.astype(np.uint8))
-            depth = o3d.geometry.Image(depth_rect.astype(np.float32))
-            new_xyz, new_rgb = gaussians.create_pcd_from_image_and_depth(cam, rgb, depth, downsample_factor = pcd_downsample_factor)
-            
-            positions = np.concatenate((positions, new_xyz), axis=0) if positions is not None else new_xyz
-            colors = np.concatenate((colors, new_rgb), axis=0) if colors is not None else new_rgb
-    
-    
 
 
     pcd = BasicPointCloud(points=positions, colors=colors, normals=None)
     gaussians.create_from_pcd(pcd, cameras_extent)
+
+
+    if use_pcd_from_depth_prediction:
+        positions, colors = init_dense_pcd_from_network(viewpoint_stack, num_points_per_image = 10000)
+        pcd_dense = BasicPointCloud(points=positions, colors=colors, normals=None)
+        print(pcd, pcd.points, pcd.colors)
 
 
 
@@ -192,11 +202,11 @@ if __name__ == "__main__":
     sfm.MODULE_TEST_CALIBRATION = False
 
 
-    sfm.start_calib_iter = 100
-    sfm.stop_calib_iter = 300
+    sfm.start_calib_iter = 300
+    sfm.stop_calib_iter = 500
 
-    sfm.start_pose_iter = 50
-    sfm.stop_pose_iter = 300
+    sfm.start_pose_iter = 100
+    sfm.stop_pose_iter = 500
 
     sfm.start_gaussian_iter = 0
     sfm.stop_gaussian_iter = 100000
