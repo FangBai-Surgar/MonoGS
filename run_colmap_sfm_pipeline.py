@@ -33,7 +33,7 @@ from colmap import assemble_3DGS_cameras
 
 
 
-def init_dense_pcd_from_network (viewpoint_stack, num_points = 20000):
+def init_dense_pcd_from_network (viewpoint_stack, reconstruction: ColMap, num_points = 20000):
 
     pcd_downsample_factor = viewpoint_stack[0].image_height * viewpoint_stack[0].image_width * len(viewpoint_stack) / num_points
 
@@ -119,7 +119,7 @@ if __name__ == "__main__":
     opt.densification_interval = 50
     opt.opacity_reset_interval = 350
     opt.densify_from_iter = 49
-    opt.densify_until_iter = 700
+    opt.densify_until_iter = 4000
     opt.densify_grad_threshold = 0.0002
 
 
@@ -130,8 +130,9 @@ if __name__ == "__main__":
 
     image_dir = "/home/fang/SURGAR/Colmap_Test/Fountain/images"
     '''
-    2759.48 0 1520.69
-    0 2764.16 1006.81
+    ground_truth calibration:
+        2759.48 0 1520.69
+        0 2764.16 1006.81
     '''
     
 
@@ -148,35 +149,22 @@ if __name__ == "__main__":
     print(f"scale_info = {scale_info}")
     cameras_extent = scale_info["radius"]
 
-    # initialize 3D Gaussians
+    # initialize 3D Gaussians from sparse Colmap output
     gaussians = GaussianModel(sh_degree=0)
     gaussians.spatial_lr_scale = cameras_extent
     
-
-    # From Sparse Colmap output
     positions, colors = reconstruction.getPointCloud()
     pcd = BasicPointCloud(points=positions, colors=colors, normals=None)
     gaussians.create_from_pcd(pcd, cameras_extent)
     gaussians.training_setup(opt)
 
-    # From dense depth prediction of a neural network
-    if use_pcd_from_depth_prediction:
-        positions, colors = init_dense_pcd_from_network(viewpoint_stack, num_points = 20000)
-        pcd = BasicPointCloud(points=positions, colors=colors, normals=None)
-        gaussians.extend_from_pcd(pcd, point_size=1.0)
-        gaussians.training_setup(opt)
-
-
 
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
-
-
 
     ## visualization
     use_gui = True
     q_main2vis = mp.Queue() if use_gui else FakeQueue()
     q_vis2main = mp.Queue() if use_gui else FakeQueue()
-
 
     if use_gui:
         bg_color = [0.0, 0.0, 0.0]
@@ -191,12 +179,20 @@ if __name__ == "__main__":
         gui_process.start()
         time.sleep(3)
 
-
     print(f"Run with image W: { viewpoint_stack[0].image_width },  H: { viewpoint_stack[0].image_height }")
 
+
     sfm = SFM(pipe, q_main2vis, q_vis2main, use_gui, viewpoint_stack, gaussians, opt, cameras_extent)
+
+    # From dense depth prediction of a neural network
+    if use_pcd_from_depth_prediction:
+        positions, colors = init_dense_pcd_from_network(viewpoint_stack, reconstruction, num_points = 100000)
+        sfm.add_dense_point_cloud(positions=positions, colors=colors)
+
+
     sfm.MODULE_TEST_CALIBRATION = False
 
+    
 
     sfm.start_calib_iter = 1300
     sfm.stop_calib_iter = 500
@@ -206,6 +202,8 @@ if __name__ == "__main__":
 
     sfm.start_gaussian_iter = 0
     sfm.stop_gaussian_iter = 100000
+
+    sfm.add_dense_pcd_iter = max(sfm.stop_calib_iter, sfm.stop_pose_iter) + 1
 
 
     sfm.require_calibration = True

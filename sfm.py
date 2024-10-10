@@ -84,11 +84,14 @@ class SFM(mp.Process):
         self.gaussians = gaussians
         self.opt = opt
 
+        self.dense_point_cloud = None
+        self.add_dense_pcd_iter = -1
+
         self.background = torch.tensor([0.0, 0.0, 0.0], dtype=torch.float32, device="cuda")
         self.rgb_boundary_threshold = 0.01
 
         self.pause = False
-
+        
 
         self.require_calibration = True
         self.allow_lens_distortion = True
@@ -197,9 +200,7 @@ class SFM(mp.Process):
 
 
     def set_gaussian_densification_stats (self):
-
         for idx in range(len(self.viewspace_point_tensor_acm)):
-
             self.gaussians.max_radii2D[self.visibility_filter_acm[idx]] = torch.max(
                 self.gaussians.max_radii2D[self.visibility_filter_acm[idx]],
                 self.radii_acm[idx][self.visibility_filter_acm[idx]],
@@ -208,10 +209,13 @@ class SFM(mp.Process):
                 self.viewspace_point_tensor_acm[idx], self.visibility_filter_acm[idx]
             )
 
-            # self.gaussians.max_radii2D[visibility_filter] = torch.max(self.gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
-            # self.gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
 
-
+    def add_dense_point_cloud (self, positions, colors, normals = None):
+        if positions is None or colors is None:
+            self.dense_point_cloud = None
+            return        
+        self.dense_point_cloud = BasicPointCloud(points=positions, colors=colors, normals=normals)
+        
 
     def optimize (self):
 
@@ -263,6 +267,12 @@ class SFM(mp.Process):
 
         for iteration in range(first_iter, self.opt.iterations+1):
             
+
+            if (self.dense_point_cloud is not None) and (iteration == self.add_dense_pcd_iter):
+                self.gaussians.extend_from_pcd(self.dense_point_cloud, point_size=1.0)
+                self.gaussians.training_setup(self.opt)
+                sfm_gui.Log(f"Include additional dense point cloud: {len(self.dense_point_cloud.points)} points", tag="SFM")
+
 
             # interaction with gui interface Pause/Resume
             if not self.q_vis2main.empty():
