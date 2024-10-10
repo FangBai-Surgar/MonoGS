@@ -123,11 +123,18 @@ if __name__ == "__main__":
     opt.densify_grad_threshold = 0.0002
 
 
+    """ DATASET URL
+    
+    https://colmap.github.io/datasets.html#datasets
+    
+    https://cvg-data.inf.ethz.ch/
+
+    https://cvg-data.inf.ethz.ch/local-feature-evaluation-schoenberger2017
+
+    """
 
 
-
-
-
+    fountain_data_url = "https://cvg-data.inf.ethz.ch/local-feature-evaluation-schoenberger2017/Strecha-Fountain.zip"
     image_dir = "/home/fang/SURGAR/Colmap_Test/Fountain/images"
     '''
     ground_truth calibration:
