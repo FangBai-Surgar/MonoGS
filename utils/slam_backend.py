@@ -443,7 +443,7 @@ class BackEnd(mp.Process):
 
                 elif data[0] == "calibration_change":
                     self.map(self.current_window, prune=True, calibrate=False, iters=10) # to perform excessive pruning
-                    self.map(self.current_window, prune=False, calibrate=False, iters=20) # optimize Gaussian parameters only
+                    self.map(self.current_window, prune=False, calibrate=False, iters=10) # optimize Gaussian parameters only
                     self.map(self.current_window, prune=True, calibrate=False, iters=1) # prune
                     self.push_to_frontend()
                     rich.print("[bold red]Backend : calibration change signal recieved [/bold red]")
@@ -471,8 +471,18 @@ class BackEnd(mp.Process):
 
                     self.viewpoints[cur_frame_idx] = viewpoint
                     self.current_window = current_window
-                    self.add_next_kf(cur_frame_idx, viewpoint, depth_map=depth_map)               
-                    
+                    if (not self.signal_calibration_change):
+                        self.add_next_kf(cur_frame_idx, viewpoint, depth_map=depth_map)               
+                    else:
+                        pass
+                        # new_unique_kfIDs = torch.ones((new_xyz.shape[0])).int() * kf_id
+                        # new_n_obs = torch.zeros((new_xyz.shape[0])).int()
+                        # if new_kf_ids is not None:
+                        #     self.unique_kfIDs = torch.cat((self.unique_kfIDs, new_kf_ids)).int()
+                        # if new_n_obs is not None:
+                        #     self.n_obs = torch.cat((self.n_obs, new_n_obs)).int()                        
+
+
                     pose_opt_params = []
                     calib_opt_frames_stack = []
                     frames_to_optimize = self.config["Training"]["pose_window"]
