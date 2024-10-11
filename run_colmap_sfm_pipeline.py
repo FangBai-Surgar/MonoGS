@@ -116,10 +116,10 @@ if __name__ == "__main__":
 
 
     opt.iterations = 5000
-    opt.densification_interval = 50
-    opt.opacity_reset_interval = 750
+    opt.densification_interval = 30
+    opt.opacity_reset_interval = 200
     opt.densify_from_iter = 49
-    opt.densify_until_iter = 4000
+    opt.densify_until_iter = 2000
     opt.densify_grad_threshold = 0.0002
 
 
@@ -154,7 +154,7 @@ if __name__ == "__main__":
     '''
 
 
-    use_pcd_from_depth_prediction = True
+    use_pcd_from_depth_prediction = False
 
 
     # perform colmap reconstruction

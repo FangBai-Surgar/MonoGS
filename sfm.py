@@ -169,17 +169,16 @@ class SFM(mp.Process):
 
             # Gaussian scale space for focal length calibration
             if frozen_states and self.gaussian_scale_t > 0.5:
-                image_scale_t = image_conv_gaussian_separable(image, sigma=self.gaussian_scale_t, epsilon=0.01)
-                gt_image_scale_t = image_conv_gaussian_separable(gt_image, sigma=self.gaussian_scale_t, epsilon=0.01)
-                # mask the image margin when peforming long range pixel matching
                 mask = mask * self.image_margin_mask
+                image_scale_t = image_conv_gaussian_separable(image, sigma=self.gaussian_scale_t, epsilon=0.01) * mask
+                gt_image_scale_t = image_conv_gaussian_separable(gt_image, sigma=self.gaussian_scale_t, epsilon=0.01) * mask
             else:
-                image_scale_t = image
-                gt_image_scale_t = gt_image
+                image_scale_t = image #* mask
+                gt_image_scale_t = gt_image #* mask
 
             # huber_loss_function = torch.nn.HuberLoss(reduction = 'mean', delta = 1.0)
             huber_loss_function = torch.nn.SmoothL1Loss(reduction = 'mean', beta = 0.0)
-            loss += (1.0 - self.opt.lambda_dssim) * huber_loss_function(image_scale_t*mask, gt_image_scale_t*mask)
+            loss += (1.0 - self.opt.lambda_dssim) * huber_loss_function(image_scale_t, gt_image_scale_t)
 
             # Ll1 = l1_loss(image*mask, gt_image*mask)  
             # loss += (1.0 - self.opt.lambda_dssim) * Ll1
@@ -346,7 +345,7 @@ class SFM(mp.Process):
                         # recompute the loss, as Gaussian/pose update may have changed it
                         loss_prev = self.compute_loss (
                                 frozen_states = frozen_states,
-                                use_SSIM = (iteration > self.stop_calib_iter) )
+                                use_SSIM = (iteration > self.opt.densify_until_iter) )
                     # verify the loss again
                     if loss > loss_prev:
                         self.calibration_optimizer.update_focal_learning_rate (scale = 0.5)

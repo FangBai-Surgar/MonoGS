@@ -439,9 +439,9 @@ class BackEnd(mp.Process):
                     self.push_to_frontend("init")
 
                 elif data[0] == "calibration_change":
-                    self.map(self.current_window, prune=True, calibrate=False, iters=10)
-                    self.map(self.current_window, prune=False, calibrate=False, iters=10)
-                    self.map(self.current_window, prune=True, calibrate=False, iters=1)
+                    self.map(self.current_window, prune=True, calibrate=False, iters=10) # to perform excessive pruning
+                    self.map(self.current_window, prune=False, calibrate=False, iters=20) # optimize Gaussian parameters only
+                    self.map(self.current_window, prune=True, calibrate=False, iters=1) # prune
                     self.push_to_frontend()
                     rich.print("[bold red]Backend : calibration change signal recieved [/bold red]")
 
@@ -541,9 +541,9 @@ class BackEnd(mp.Process):
 
                     ### The order of following three matters. prune goes last ###
                     if self.calibration_optimizers is not None:
-                        if (calibration_identifier_cnt < 2): # Don't update 3D structure with one view
+                        if (calibration_identifier_cnt < 3): # Don't update 3D structure with one view
                             self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)
-                            self.map(self.current_window, calibrate=True, fix_gaussian=True,  iters=iter_per_kf*3)
+                            self.map(self.current_window, calibrate=True, fix_gaussian=True,  iters=iter_per_kf*2)
                         else:
                             self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)
                             self.map(self.current_window, calibrate=True, fix_gaussian=False, iters=iter_per_kf)
