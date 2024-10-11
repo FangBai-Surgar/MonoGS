@@ -45,6 +45,7 @@ class BackEnd(mp.Process):
         # calibration control params
         self.require_calibration = False
         self.allow_lens_distortion = False
+        self.signal_calibration_change = False
 
 
     def set_hyperparams(self):
@@ -384,7 +385,6 @@ class BackEnd(mp.Process):
             keyframes.append((kf_idx, kf.R.clone(), kf.T.clone(), kf.fx, kf.fy, kf.kappa))
         if tag is None:
             tag = "sync_backend"
-
         msg = [tag, clone_obj(self.gaussians), self.occ_aware_visibility, keyframes]
         self.frontend_queue.put(msg)
 
@@ -408,6 +408,9 @@ class BackEnd(mp.Process):
                 if self.single_thread:
                     time.sleep(0.01)
                     continue
+                # if self.signal_calibration_change:
+                #     time.sleep(0.01)
+                #     continue
                 self.map(self.current_window)
                 if self.last_sent >= 10:
                     self.map(self.current_window, prune=True, calibrate=False, iters=10)
@@ -454,12 +457,15 @@ class BackEnd(mp.Process):
                     rich.print(f"[bold blue]BackEnd  Receive :[/bold blue] [{cur_frame_idx}]: fx: {viewpoint.fx:.3f}, fy: {viewpoint.fy:.3f}, kappa: {viewpoint.kappa:.6f}, calib_id: {viewpoint.calibration_identifier}")
 
                     current_calibration_identifier = viewpoint.calibration_identifier
-                    calibration_identifier_cnt = 0
+                    calibration_identifier_cnt = 0                    
 
                     if len(self.current_window):
                         last_keyframe = self.viewpoints[ self.current_window[0] ]
                         if (current_calibration_identifier == last_keyframe.calibration_identifier):
                             viewpoint.update_calibration(last_keyframe.fx, last_keyframe.fy, last_keyframe.kappa) # use the calibration estimate in backend keyframes
+                            self.signal_calibration_change = False
+                        else:
+                            self.signal_calibration_change = True
 
                     rich.print(f"[bold blue]BackEnd  InitEst :[/bold blue] [{cur_frame_idx}]: fx: {viewpoint.fx:.3f}, fy: {viewpoint.fy:.3f}, kappa: {viewpoint.kappa:.6f}, calib_id: {viewpoint.calibration_identifier}")
 
@@ -541,9 +547,12 @@ class BackEnd(mp.Process):
 
                     ### The order of following three matters. prune goes last ###
                     if self.calibration_optimizers is not None:
-                        if (calibration_identifier_cnt < 3): # Don't update 3D structure with one view
+                        if (calibration_identifier_cnt == 1): # Don't update 3D structure with one view
                             self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)
-                            self.map(self.current_window, calibrate=True, fix_gaussian=True,  iters=iter_per_kf*2)
+                            self.map(self.current_window, calibrate=True, fix_gaussian=True,  iters=iter_per_kf*3)                            
+                        elif (calibration_identifier_cnt == 2): # Two view, mimimal case to update all
+                            self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)
+                            self.map(self.current_window, calibrate=True, fix_gaussian=False, iters=iter_per_kf)
                         else:
                             self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)
                             self.map(self.current_window, calibrate=True, fix_gaussian=False, iters=iter_per_kf)
@@ -561,7 +570,7 @@ class BackEnd(mp.Process):
                                 viewpoint.update_calibration(fx, fy, kappa)
                     
                     rich.print(f"[bold blue]BackEnd  Optimize:[/bold blue] [{cur_frame_idx}]: fx: {self.viewpoints[cur_frame_idx].fx:.3f}, fy: {self.viewpoints[cur_frame_idx].fy:.3f}, kappa: {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id: {self.viewpoints[cur_frame_idx].calibration_identifier}, iter_per_kf: {iter_per_kf}\n")
-                    self.push_to_frontend("keyframe")                    
+                    self.push_to_frontend("keyframe")
 
                 else:
                     raise Exception("Unprocessed data", data)

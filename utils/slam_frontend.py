@@ -136,9 +136,10 @@ class FrontEnd(mp.Process):
         self.request_init(cur_frame_idx, viewpoint, depth_map)
         self.reset = False
 
-    def tracking(self, cur_frame_idx, viewpoint):
-        prev = self.cameras[cur_frame_idx - self.use_every_n_frames]
-        viewpoint.update_RT(prev.R, prev.T)
+    def tracking(self, cur_frame_idx, viewpoint, continue_optimize=False):
+        if (not continue_optimize):
+            prev = self.cameras[cur_frame_idx - self.use_every_n_frames]
+            viewpoint.update_RT(prev.R, prev.T)
         
         opt_params = []
         opt_params.append(
@@ -463,9 +464,7 @@ class FrontEnd(mp.Process):
 
                 if self.require_calibration and self.initialized and self.signal_calibration_change:
                     self.init_focal (viewpoint, optimizer_type = "SGD", gaussian_scale_t = 0.0,  beta = 0.0, learning_rate = lr, max_iter_num = 20, step_safe_guard = True)
-
-
-                # render_pkg = self.tracking(cur_frame_idx, viewpoint)
+                    render_pkg = self.tracking(cur_frame_idx, viewpoint, continue_optimize=True) # render again with the best parameters
     
 
                 current_window_dict = {}
@@ -509,7 +508,12 @@ class FrontEnd(mp.Process):
                     )
                 if self.single_thread:
                     create_kf = check_time and create_kf
-                if create_kf:
+                if create_kf: #or self.signal_calibration_change:
+                    # removed = None
+                    # if (not create_kf) and self.signal_calibration_change: # if not a keyframe, but calibration changes
+                    #     self.current_window[0] = cur_frame_idx # replace the last keyframe with the current keyframe
+                    #     removed = [0]
+                    # else:
                     self.current_window, removed = self.add_to_window(
                         cur_frame_idx,
                         curr_visibility,
