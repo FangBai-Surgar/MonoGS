@@ -35,8 +35,11 @@ def collect_data_from_directory(base_path):
         sequence_path = os.path.join(base_path, sequence_dir)
         sequence = sequence_dir.split('/')[-1]
         print(sequence)
-        if sequence != 'office0_cali_easy':
-            continue
+        # if sequence != 'office0':
+            # continue
+        # if sequence inlcude 4:
+        # if 'office4' in sequence:
+        #     continue
         if os.path.isdir(sequence_path):
             data_dict[sequence] = {}
             trj_dict[sequence] = {}
@@ -67,30 +70,41 @@ def collect_data_from_directory(base_path):
                         aft_opt_mean_lpips = after_opt_psnr_json_data.get('mean_lpips', 'None')
 
                         dataset_in_yaml_data = yaml_data['Dataset']
-                        unit = dataset_in_yaml_data.get('unit', 'None')
-                        pcd_downsample = dataset_in_yaml_data.get('pcd_downsample', 'None')
-                        pcd_downsample_init = dataset_in_yaml_data.get('pcd_downsample_init', 'None')
-                        point_size = dataset_in_yaml_data.get('point_size', 'None')
+                        sp = dataset_in_yaml_data.get('single_thread', 'None')
+                        # unit = dataset_in_yaml_data.get('unit', 'None')
+                        # pcd_downsample = dataset_in_yaml_data.get('pcd_downsample', 'None')
+                        # pcd_downsample_init = dataset_in_yaml_data.get('pcd_downsample_init', 'None')
+                        # point_size = dataset_in_yaml_data.get('point_size', 'None')
                         calib_opts_allow_lens_distortion = yaml_data.get('calib_opts_allow_lens_distortion', 'None')
                         calib_opts_require_calibration = yaml_data.get('calib_opts_require_calibration', 'None')
 
-                        edge_threshold = yaml_data.get('Training').get('edge_threshold', 'None')
-                        kf_translation = yaml_data.get('Training').get('kf_translation', 'None')
-                        kf_min_translation = yaml_data.get('Training').get('kf_min_translation', 'None')
+                        after_mapping_itr_num = yaml_data.get('Training').get('after_mapping_itr_num', 'None')
+                        be_focal_lr = yaml_data.get('Training').get('be_focal_lr', 'None')
+                        be_focal_lr_cnt_s2 = yaml_data.get('Training').get('be_focal_lr_cnt_s2', 'None')
+
+
+                        # edge_threshold = yaml_data.get('Training').get('edge_threshold', 'None')
+                        # kf_translation = yaml_data.get('Training').get('kf_translation', 'None')
+                        # kf_min_translation = yaml_data.get('Training').get('kf_min_translation', 'None')
+
 
                         data_dict[sequence][date_dir] = {
                             'result_path': date_path,
-                            'unit': unit,
-                            'pcd_downsample': pcd_downsample,
-                            'pcd_downsample_init': pcd_downsample_init,
-                            'point_size': point_size,
-                            'edge_threshold':edge_threshold,
-                            'kf_translation': kf_translation,
-                            'kf_min_translation': kf_min_translation,
+                            # 'unit': unit,
+                            # 'pcd_downsample': pcd_downsample,
+                            # 'pcd_downsample_init': pcd_downsample_init,
+                            # 'point_size': point_size,
+                            # 'edge_threshold':edge_threshold,
+                            # 'kf_translation': kf_translation,
+                            # 'kf_min_translation': kf_min_translation,
                             'rmse': rmse,
                             'after_opt_mean_psnr': aft_opt_mean_psnr,
                             'after_opt_mean_ssim': aft_opt_mean_ssim,
                             'after_opt_mean_lpips': aft_opt_mean_lpips,
+                            'single_thread': sp,
+                            'after_mapping_itr_num': after_mapping_itr_num,
+                            'be_focal_lr_cnt_s2': be_focal_lr_cnt_s2,
+                            'be_focal_lr': be_focal_lr,
                             'calib_opts_require_calibration': calib_opts_require_calibration,
                             'calib_opts_allow_lens_distortion': calib_opts_allow_lens_distortion
                         }
@@ -107,8 +121,11 @@ def collect_data_from_directory(base_path):
 def write_to_csv(data_records, output_path):
     # Define the fieldnames for the CSV file
     fieldnames = [
-        'sequence_id', 'unit', 'pcd_downsample', 'pcd_downsample_init', 'point_size', 'edge_threshold', 'kf_translation', 'kf_min_translation',
-        'rmse[cm]', 'after_opt_mean_psnr', 'after_opt_mean_ssim', 'after_opt_mean_lpips', 
+        'sequence_id', 
+        # 'unit', 'pcd_downsample', 'pcd_downsample_init', 'point_size', 'edge_threshold', 'kf_translation', 'kf_min_translation',
+        'rmse[m]', 'after_opt_mean_psnr', 'after_opt_mean_ssim', 'after_opt_mean_lpips', 
+        'sp',
+        'after_mapping_itr_num', 'be_focal_lr_cnt_s2', 'be_focal_lr',
         # 'timestamp', 
         'calib_opts_require_calibration', 'calib_opts_allow_lens_distortion',
         'result_path'
@@ -127,17 +144,21 @@ def write_to_csv(data_records, output_path):
                 # Create a row with required data
                 row = {
                     'sequence_id': sequence_id,
-                    'unit': data['unit'],
-                    'pcd_downsample': data['pcd_downsample'],
-                    'pcd_downsample_init': data['pcd_downsample_init'],
-                    'point_size': data['point_size'],
-                    'edge_threshold': data['edge_threshold'],
-                    'kf_translation': data['kf_translation'],
-                    'kf_min_translation': data['kf_min_translation'],
-                    'rmse[cm]': data['rmse'],
+                    # 'unit': data['unit'],
+                    # 'pcd_downsample': data['pcd_downsample'],
+                    # 'pcd_downsample_init': data['pcd_downsample_init'],
+                    # 'point_size': data['point_size'],
+                    # 'edge_threshold': data['edge_threshold'],
+                    # 'kf_translation': data['kf_translation'],
+                    # 'kf_min_translation': data['kf_min_translation'],
+                    'rmse[m]': data['rmse'],
                     'after_opt_mean_psnr': data['after_opt_mean_psnr'],
                     'after_opt_mean_ssim': data['after_opt_mean_ssim'],
                     'after_opt_mean_lpips': data['after_opt_mean_lpips'],
+                    'sp': data['single_thread'],
+                    'after_mapping_itr_num': data['after_mapping_itr_num'],
+                    'be_focal_lr_cnt_s2': data['be_focal_lr_cnt_s2'],
+                    'be_focal_lr': data['be_focal_lr'],
                     # 'timestamp': timestamp,
                     'calib_opts_require_calibration': data['calib_opts_require_calibration'],
                     'calib_opts_allow_lens_distortion': data['calib_opts_allow_lens_distortion'],
@@ -240,16 +261,190 @@ def plot_evo(trj_records):
                     ax = plot_pose_axes(ax, pose, scale=0.01)
             plt.show()
 
+def dict_to_rmse_latex(data_dict):
+    # Check with each sequence_id, it has two timestamps
+    be_focal_lr_values = set()
+    be_focal_lr_cnt_s2_values = set()
+    for sequence_id, timestamps in data_dict.items():
+        assert len(timestamps) == 2, f"Sequence {sequence_id} does not have exactly two timestamps."
+        single_thread_values = [data['single_thread'] for timestamp, data in timestamps.items()]
+        # Check for one True and one False
+        assert single_thread_values.count(True) == 1 and single_thread_values.count(False) == 1, \
+        f"Sequence {sequence_id} does not have one True and one False for 'single_thread'."
+        for timestamp, data in timestamps.items():
+            be_focal_lr_values.add(data['be_focal_lr'])
+            be_focal_lr_cnt_s2_values.add(data['be_focal_lr_cnt_s2'])
+    # Check if there is only one unique value for each parameter
+    assert len(be_focal_lr_values) == 1, "Different 'be_focal_lr' values found across the sequences."
+    assert len(be_focal_lr_cnt_s2_values) == 1, "Different 'be_focal_lr_cnt_s2' values found across the sequences." 
+    adjusted_data_dict = {}
+    for sequence_id, timestamps in data_dict.items():
+        for timestamp, data in timestamps.items():
+            key = 'True' if data['single_thread'] else 'False'
+            if key not in adjusted_data_dict:
+                adjusted_data_dict[key] = []
+            adjusted_data_dict[key].append((sequence_id, 100* data['rmse']))
+    rmse_lines = []
+    for key, values in adjusted_data_dict.items():
+        if key == 'True':
+            type = 'CaliGS-SLAM(sp)'
+            # print(values.sequence_id)
+        else:
+            type = 'CaliGS-SLAM'
+        # sorted values by its last element in sequence_id
+        values = sorted(values, key=lambda x: x[0])
+        rmse_line = " & " + type
+        seq_line = "Types & Methods" 
+        for seq_id, rmse in values:
+            rmse_line += f" & {rmse:.4f}"
+            # seq_line += f" {seq_id} & " 
+            seq_line += f" & {seq_id.replace('_', '-')}"
+        rmse_lines.append(rmse_line)
+        print(seq_line)
+        print(rmse_line)
 
+    latex_code = "\\begin{table}[ht]\n"
+    latex_code += "\\centering\n"
+    latex_code += "\\begin{tabular}{|" + "c|"*(len(data_dict)+2) + "}\n"
+    latex_code += "\\hline\n"
+    latex_code += seq_line + "\\\\\n"
+    # latex_code += "Types & Methods & o0 & o0-v0 & o0-v1 & o0-v2 & o0-v3 & o0-v4 \\\\\n"
+    latex_code += "\hline \\hline\n"
+    if 'sp' in rmse_lines[0]:
+        # If 'sp' is in the first element, append it first
+        latex_code += rmse_lines[1] + "\\\\\n"
+        latex_code += "\\hline\n"
+        latex_code += "\\multirow{-2}{*}{RGB}" + rmse_lines[0] + "\\\\\n"
+    else:
+        # If 'sp' is not in the first element, append the second element first
+        latex_code += rmse_lines[0] + "\\\\\n"
+        latex_code += "\\hline\n"
+        latex_code += "\\multirow{-2}{*}{RGB}" + rmse_lines[1] + "\\\\\n"
+    latex_code += "\\hline\n"
+    latex_code += "\\end{tabular}\n"
+    latex_code += "\\caption{ATE RMSE in cm. different methods and sequences.}\n"
+    latex_code += "\\label{tab:rmse}\n"
+    latex_code += "\\end{table}\n"   
+    return latex_code
 
-            
+def dict_to_psnr_latex(data_dict):
+    # Check with each sequence_id, it has two timestamps
+    be_focal_lr_values = set()
+    be_focal_lr_cnt_s2_values = set()
+    for sequence_id, timestamps in data_dict.items():
+        assert len(timestamps) == 2, f"Sequence {sequence_id} does not have exactly two timestamps."
+        single_thread_values = [data['single_thread'] for timestamp, data in timestamps.items()]
+        # Check for one True and one False
+        assert single_thread_values.count(True) == 1 and single_thread_values.count(False) == 1, \
+        f"Sequence {sequence_id} does not have one True and one False for 'single_thread'."
+        for timestamp, data in timestamps.items():
+            be_focal_lr_values.add(data['be_focal_lr'])
+            be_focal_lr_cnt_s2_values.add(data['be_focal_lr_cnt_s2'])
+    # Check if there is only one unique value for each parameter
+    assert len(be_focal_lr_values) == 1, "Different 'be_focal_lr' values found across the sequences."
+    assert len(be_focal_lr_cnt_s2_values) == 1, "Different 'be_focal_lr_cnt_s2' values found across the sequences." 
+    adjusted_data_dict = {}
+    for sequence_id, timestamps in data_dict.items():
+        print(sequence_id)
+        for timestamp, data in timestamps.items():
+            key = 'True' if data['single_thread'] else 'False'
+            if sequence_id not in adjusted_data_dict:
+                adjusted_data_dict[sequence_id] = []
+            adjusted_data_dict[sequence_id].append((key, data['after_opt_mean_psnr'], data['after_opt_mean_ssim'], data['after_opt_mean_lpips']))
 
-# Base directory for the results
-base_path = '/workspaces/src/MonoGS_dev/results/monocular/replica'
-output_csv_path = '/workspaces/src/MonoGS_dev/results/replica_data_summary.csv'
+    lines = []
+    # sort the dictionary by sequence_id
+    seqs = sorted(adjusted_data_dict.keys())
+    
+    for sequence_id in seqs:
+        values = adjusted_data_dict[sequence_id]
+        # print(values)
+        for sp, psnr, ssim, lpips in values:
+            print(sp, psnr, ssim, lpips)
+            if sp == 'True':
+                key = 'CaliGS-SLAM(sp)'
+            else:
+                key = 'CaliGS-SLAM'
+            line = f" {sequence_id} & {key} & {psnr:.4f} & {ssim:.4f} & {lpips:.4f}".replace('_', '-')
+            # print(line)
+            lines.append(line)
+    
+    latex_code = "\\begin{table}[ht]\n"
+    latex_code += "\\centering\n"
+    latex_code += "\\begin{tabular}{|" + "c|"*(5) + "}\n"
+
+    latex_code += "\\hline\n"
+    # latex_code += seq_line + "\\\\\n"
+    latex_code += "Seq & Methods & PSNR[db]$\\uparrow$ & SSIM$\\uparrow$ & LPIPS$\\downarrow$ \\\\\n"
+    latex_code += "\hline \\hline\n"
+    for i in lines:
+        # If 'sp' is in the first element, append it first
+        latex_code += i + "\\\\\n"
+        latex_code += "\\hline\n"
+
+    latex_code += "\\hline\n"
+    latex_code += "\\end{tabular}\n"
+    latex_code += "\\caption{ATE RMSE in cm. different methods and sequences.}\n"
+    latex_code += "\\label{tab:rmse}\n"
+    latex_code += "\\end{table}\n"   
+    return latex_code
+
+    # for sequence_id, timestamps in data_dict.items():
+    #     first_timestamp = True
+    #     for date_dir, metrics in timestamps.items():
+    #         if first_timestamp:
+    #             latex_code += f"        \\multirow{{2}}{{*}}{{{sequence_id}}} & {date_dir} & {metrics['rmse']} & {metrics['after_opt_mean_psnr']} & {metrics['after_opt_mean_ssim']} & {'Yes' if metrics['single_thread'] else 'No'} \\\\\n"
+    #             first_timestamp = False
+    #         else:
+    #             latex_code += f"        & {date_dir} & {metrics['rmse']} & {metrics['after_opt_mean_psnr']} & {metrics['after_opt_mean_ssim']} & {'Yes' if metrics['single_thread'] else 'No'} \\\\\n"
+    #     latex_code += "        \\hline\n"
+    
+# for i in range(3,5):
+#     print("\n")
+#     print(f"./ReplicaRendererCustom ../../datasets/office_{i}/mesh.ply ../../datasets/office_{i}/textures ../../datasets/office_{i}/glass.sur")
+#     print(f"mkdir -p /datasets/replica_small/office{i}/results")
+#     print(f"mv *.jpg /datasets/replica_small/office{i}/results")
+#     print(f"mv *.png /datasets/replica_small/office{i}/results")
+#     print(f"mv intrinsics.txt /datasets/replica_small/office{i}/")
+#     print(f"cp /datasets/replica/office{i}/traj.txt /datasets/replica_small/office{i}/traj.txt")
+# exit()        
+
+# # Base directory for the results
+# base_path = '/workspaces/src/MonoGS_dev/results/depth/replica_small'
+# base_path = '/workspaces/src/MonoGS_dev/results/monocular/replica_small_cali'
+base_path = '/workspaces/src/MonoGS_dev/results/monocular/replica_small'
+output_csv_path = '/workspaces/src/MonoGS_dev/results/replica_small_cali_data_summary.csv'
 
 # Collect data and write to CSV
 data_dict, trj_dict = collect_data_from_directory(base_path)
-write_to_csv(data_dict, output_csv_path)
-plot_evo(trj_dict)
+latex_table_code = dict_to_rmse_latex(data_dict)
+print(data_dict)
+print(latex_table_code)
+latex_table_code = dict_to_psnr_latex(data_dict)
+print(latex_table_code)
+
+# write_to_csv(data_dict, output_csv_path)
+# plot_evo(trj_dict)
 # print(f"Data collected and written to {output_csv_path}")
+
+# result1_path = "/workspaces/src/MonoGS_dev/results/monocular/replica_cali/office4/2024-10-07-13-41-11"
+# result2_path = "/workspaces/src/MonoGS_dev/results/monocular/replica_cali/office4/2024-10-07-17-55-24"
+
+# trj_final_json_file_path1 = os.path.join(result1_path, 'plot', 'trj_final.json')
+# trj_final_json_data1 = read_json_file(trj_final_json_file_path1)
+# trj_dict1 = {}
+# trj_data1 = dict()
+# trj_data1['trj_id'] = trj_final_json_data1.get('trj_id', 'None')
+# trj_data1['trj_est'] = trj_final_json_data1.get('trj_est', 'None')
+# trj_data1['trj_gt']  = trj_final_json_data1.get('trj_gt', 'None')
+# trj_dict1['office4']['2024-10-07-13-41-11'] = trj_data1
+
+# trj_final_json_file_path2 = os.path.join(result2_path, 'plot', 'trj_final.json')
+# trj_final_json_data2 = read_json_file(trj_final_json_file_path2)
+# trj_dict2 = {}
+# trj_data2 = dict()
+# trj_data2['trj_id'] = trj_final_json_data2.get('trj_id', 'None')
+# trj_data2['trj_est'] = trj_final_json_data2.get('trj_est', 'None')
+# trj_data2['trj_gt']  = trj_final_json_data2.get('trj_gt', 'None')
+# trj_dict2['office4']['2024-10-07-13-41-11'] = trj_data2
+# plot_evo(trj_dict1)
