@@ -317,9 +317,9 @@ class BackEnd(mp.Process):
                 # this function will perform prune, before doing Bundle adjustment. Thus it is not a good idea to perform calibration immediately
                 if calibrate and self.require_calibration and self.initialized:
                     if (self.calibration_optimizers is not None) and (not prune) and (not gaussian_split):
-                        if iters >= 100:
-                            lr = lr_exp_decay_helper(step=cur_itr, lr_init=0.01, lr_final=1e-4, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=iters)
-                            self.calibration_optimizers.update_focal_learning_rate(lr = lr, scale = None)
+                        # if iters >= 100:
+                        #     lr = lr_exp_decay_helper(step=cur_itr, lr_init=0.01, lr_final=1e-4, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=iters)
+                        #     self.calibration_optimizers.update_focal_learning_rate(lr = lr, scale = None)
                         self.calibration_optimizers.focal_step()
                         if self.allow_lens_distortion and cur_itr > 2:
                             self.calibration_optimizers.kappa_step()
@@ -475,7 +475,7 @@ class BackEnd(mp.Process):
                     pose_opt_params = []
                     calib_opt_frames_stack = []
                     frames_to_optimize = self.config["Training"]["pose_window"]
-                    iter_per_kf = self.mapping_itr_num if self.single_thread else 10
+                    iter_per_kf = self.mapping_itr_num if self.single_thread else self.config["Training"]["after_mapping_itr_num"]
                     if not self.initialized:
                         if (
                             len(self.current_window)
@@ -548,10 +548,18 @@ class BackEnd(mp.Process):
                     ### The order of following three matters a lot! ###
                     if self.calibration_optimizers is not None:
                         if (calibration_identifier_cnt < 2): # Don't update 3D structure with one view
-                            self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)
-                            self.map(self.current_window, calibrate=True, fix_gaussian=True,  iters=iter_per_kf*3)
+                            # self.calibration_optimizers.update_focal_learning_rate(lr = self.config["Training"]["be_focal_lr_cnt_s2"])
+                        #     # self.map(self.current_window, calibrate=True, fix_gaussian=True,  iters=iter_per_kf*3)
+                            self.calibration_optimizers.update_focal_learning_rate(0.0025) #0.01 2024-10-15-06-10-34;   0.001 2024-10-14-20-37-38
+                            self.map(self.current_window, calibrate=True, fix_gaussian=True,  iters=10)
+                            # self.map(self.current_window, calibrate=True, fix_gaussian=True,  iters=iter_per_kf*1)
+                            # self.calibration_optimizers.update_focal_learning_rate(0.0025) #0.01 2024-10-15-06-10-34;   0.0025 2024-10-14-20-37-38
+                            self.map(self.current_window, calibrate=True, fix_gaussian=False,  iters=iter_per_kf*3)
+                            # self.map(self.current_window, calibrate=True, fix_gaussian=False,  iters=iter_per_kf*5)
+                            # self.map(self.current_window, calibrate=True, fix_gaussian=True,  iters=30)
+
                         else:
-                            self.calibration_optimizers.update_focal_learning_rate(lr = 0.002)
+                            self.calibration_optimizers.update_focal_learning_rate(lr = self.config["Training"]["be_focal_lr"])
                             self.map(self.current_window, calibrate=True, fix_gaussian=False, iters=iter_per_kf)
                     else:
                         self.map(self.current_window, iters=iter_per_kf)

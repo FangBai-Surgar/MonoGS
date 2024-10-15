@@ -57,6 +57,7 @@ class FrontEndCali(FrontEnd):
     def run(self):
         # assert self.dataset.num_imgs == self.simulator.fx.shape[0]
         print(f"self.MODULE_TEST_CALIBRATION: {self.MODULE_TEST_CALIBRATION}")
+        print(f"self.signal_calibration_change: {self.signal_calibration_change}")
         cur_frame_idx = 0
         tic = torch.cuda.Event(enable_timing=True)
         toc = torch.cuda.Event(enable_timing=True)
@@ -120,16 +121,29 @@ class FrontEndCali(FrontEnd):
 
 
                 # initialize calibration and pose to the previous camera
-                signal_calibration_change = False
                 if len(self.cameras) > self.use_every_n_frames:
                     prev = self.cameras[cur_frame_idx - self.use_every_n_frames] # last frame in tracking
                     viewpoint.update_calibration (prev.fx, prev.fy, prev.kappa) # use last frame calibration
                     viewpoint.update_RT(prev.R, prev.T) # use last frame pose
                     if viewpoint.calibration_identifier != prev.calibration_identifier:
-                        signal_calibration_change = True
-                        self.backend_queue.put(["calibration_change"])
-                        if focal_ref is not None:
-                            rich.print(f"[bold magenta]At Frame {viewpoint.uid}, change focal length (fx) to: [/bold magenta] {focal_ref} ")
+                        if (not self.signal_calibration_change):
+                            rich.print(f"\n[bold red]FrontEnd: calibration change detected at frame_idx: [/bold red]{cur_frame_idx}")
+                            self.backend_queue.put(["calibration_change"])
+                        self.signal_calibration_change = True
+                    else:
+                        self.signal_calibration_change = False
+
+                if self.signal_calibration_change:
+                    viewpoint.kappa = 0.0 # reset kappa to zero for new calibration
+                    if self.requested_keyframe > 0:
+                        time.sleep(0.01)
+                        continue
+                
+                # if self.MODULE_TEST_CALIBRATION and self.signal_calibration_change:
+                #     if focal_ref is not None:
+                #         rich.print(f"[bold magenta]At Frame {viewpoint.uid}, change focal length (fx) to: [/bold magenta] {focal_ref} ")
+                #         viewpoint.fx = focal_ref
+                #         viewpoint.fy = viewpoint.aspect_ratio * focal_ref
 
                 self.cameras[cur_frame_idx] = viewpoint
 
@@ -145,13 +159,22 @@ class FrontEndCali(FrontEnd):
 
 
                 # focal tracking
-                if self.require_calibration and self.initialized and signal_calibration_change:
-                    self.init_focal (viewpoint, gaussian_scale_t = 10.0,  beta = 1.0, learning_rate = 0.1, max_iter_num = 20) #10% * 600 = 60
-                    self.init_focal (viewpoint, gaussian_scale_t = 0.0,  beta = 0.0, learning_rate = 0.01, max_iter_num = 50)
+                # if self.require_calibration and self.initialized and signal_calibration_change:
+                #     self.init_focal (viewpoint, gaussian_scale_t = 10.0,  beta = 1.0, learning_rate = 0.1, max_iter_num = 20) #10% * 600 = 60
+                #     self.init_focal (viewpoint, gaussian_scale_t = 0.0,  beta = 0.0, learning_rate = 0.01, max_iter_num = 50)
+                # TUNING PARAMETERS
+                if self.require_calibration and self.initialized and self.signal_calibration_change:
+                    lr = self.init_focal (viewpoint, optimizer_type = "Adam", gaussian_scale_t = 10.0,  beta = 0.0, learning_rate = 0.1, max_iter_num = 30, step_safe_guard = False)
+                    self.init_focal (viewpoint, optimizer_type = "SGD", gaussian_scale_t = 0.0,  beta = 1.0, learning_rate = lr, max_iter_num = 20, step_safe_guard = True)
+
+                render_pkg = self.tracking(cur_frame_idx, viewpoint)
+
+                if self.require_calibration and self.initialized and self.signal_calibration_change:
+                    self.init_focal (viewpoint, optimizer_type = "SGD", gaussian_scale_t = 0.0,  beta = 0.0, learning_rate = lr, max_iter_num = 20, step_safe_guard = True)
 
                 # pose tracking
-                render_pkg = self.tracking(cur_frame_idx, viewpoint)
-                rich.print(f"FrontEnd  Tracking : [{cur_frame_idx}]: delta_t = {[f'{x.item():.8f}' for x in (viewpoint.T_gt - viewpoint.T)]}")
+                # render_pkg = self.tracking(cur_frame_idx, viewpoint)
+                # rich.print(f"FrontEnd  Tracking : [{cur_frame_idx}]: delta_t = {[f'{x.item():.8f}' for x in (viewpoint.T_gt - viewpoint.T)]}")
 
 
 
@@ -250,9 +273,11 @@ class FrontEndCali(FrontEnd):
                 data = self.frontend_queue.get()
                 if data[0] == "sync_backend":
                     self.sync_backend(data)
+                    self.sync_backend_calibration(cur_frame_idx)
 
                 elif data[0] == "keyframe":
                     self.sync_backend(data)
+                    self.sync_backend_calibration(cur_frame_idx)
                     self.requested_keyframe -= 1
 
                 elif data[0] == "init":
