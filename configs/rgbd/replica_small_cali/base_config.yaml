@@ -8,7 +8,7 @@ Results:
   use_wandb: False
 
 Dataset:
-  sensor_type: 'monocular'
+  sensor_type: 'depth'
   pcd_downsample: 64
   pcd_downsample_init: 32
   adaptive_pointsize: True
@@ -44,8 +44,8 @@ Training:
   lr:
     cam_rot_delta: 0.003
     cam_trans_delta: 0.001
-  be_focal_lr: 0.0025
-  be_focal_lr_cnt_s2: 0.0025
+  be_focal_lr: 0.002
+  be_focal_lr_cnt_s2: 0.002
   after_mapping_itr_num: 30
 
 opt_params:

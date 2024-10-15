@@ -1,7 +1,8 @@
-inherit_from: "configs/mono/replica_small_cali/base_config.yaml"
+inherit_from: "configs/mono/replica_small/base_config.yaml"
 Dataset:
-  dataset_path: "/datasets/replica_small_cali/office4"
-  intrinsic_filename: "intrinsics.txt"
+  dataset_path: "/datasets/replica_small/office3"
+  # intrinsic_filename: "intrinsics.txt"
+  type: 'replica'
   single_thread: True
   Calibration:
     fx: 500.0
@@ -19,4 +20,6 @@ Dataset:
     distorted: False
   grad_mask_row: 32
   grad_mask_col: 32
+
+  
 

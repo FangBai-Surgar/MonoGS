@@ -20,6 +20,5 @@ Dataset:
     distorted: False
   grad_mask_row: 32
   grad_mask_col: 32
-Training:
-  edge_threshold: 4
+
 

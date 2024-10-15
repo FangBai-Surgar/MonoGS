@@ -4,6 +4,10 @@ Dataset:
   dataset_path: "/datasets/mono-cali/image_sequence_4567"
   Calibration:
     distorted: False
-
+Training:
+  edge_threshold: 1
+  after_mapping_itr_num: 30
+  be_focal_lr: 0.003
+  be_focal_lr_cnt_s2: 0.002
 
 

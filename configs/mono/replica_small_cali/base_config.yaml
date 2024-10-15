@@ -44,7 +44,9 @@ Training:
   lr:
     cam_rot_delta: 0.003
     cam_trans_delta: 0.001
-
+  be_focal_lr: 0.0025
+  be_focal_lr_cnt_s2: 0.0025
+  after_mapping_itr_num: 30
 
 opt_params:
   iterations: 30000

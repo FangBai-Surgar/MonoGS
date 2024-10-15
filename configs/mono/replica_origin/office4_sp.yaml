@@ -1,8 +1,8 @@
-inherit_from: "configs/mono/replica/base_config.yaml"
+inherit_from: "configs/mono/replica_origin/base_config.yaml"
 Dataset:
-  dataset_path: "/datasets/replica/office0"
+  dataset_path: "/datasets/replica_origin/office4"
+  single_thread: True
   type: 'replica'
-  single_thread: False
   Calibration:
     fx: 600.0
     fy: 600.0

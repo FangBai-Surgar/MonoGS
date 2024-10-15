@@ -1,4 +1,4 @@
-inherit_from: "configs/mono/replica_small_cali/base_config.yaml"
+inherit_from: "configs/rgbd/replica_small_cali/base_config.yaml"
 Dataset:
   dataset_path: "/datasets/replica_small_cali/office4"
   intrinsic_filename: "intrinsics.txt"

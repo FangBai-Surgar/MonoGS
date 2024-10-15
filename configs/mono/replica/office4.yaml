@@ -1,7 +1,6 @@
 inherit_from: "configs/mono/replica/base_config.yaml"
 Dataset:
   dataset_path: "/datasets/replica/office4"
-  intrinsic_filename: "intrinsics.txt"
   single_thread: False
   Calibration:
     fx: 600.0
