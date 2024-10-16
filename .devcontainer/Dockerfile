@@ -1,5 +1,5 @@
 # Base image with Ubuntu 22.04
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+FROM nvidia/cuda:11.6.2-cudnn8-devel-ubuntu20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -8,7 +8,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libboost-all-dev \
     ninja-build \
     cmake \
-    ament-cmake \
     build-essential \
     git \
     vim \

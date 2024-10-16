@@ -20,7 +20,7 @@ from utils.multiprocessing_utils import FakeQueue
 from utils.slam_backend import BackEnd
 from utils_cali.slam_cali_frontend import FrontEndCali as FrontEnd
 from utils_cali.dataset_cali import load_dataset
-from utils_cali.eval_cali_utils import eval_ate, eval_rendering
+from utils_cali.eval_cali_utils import eval_ate, eval_rendering, save_gaussians_class, save_cali
 
 
 from typing import NamedTuple
@@ -28,7 +28,7 @@ from typing import NamedTuple
 import random
 import numpy as np
 
-
+import pickle
 
 # python slam_cali.py --config configs/mono/replica_cali/office4_sp.yaml --eval --require_calibration --allow_lens_distortion | tee output.txt
 
@@ -216,6 +216,11 @@ class SLAM:
             )
             wandb.log({"Metrics": metrics_table})
             save_gaussians(self.gaussians, self.save_dir, "final_after_opt", final=True)
+            # save gaussians class
+            save_gaussians_class(self.save_dir, self.gaussians)
+            save_cali(self.save_dir, self.frontend.cameras, [i for i in range(0, N_frames)])
+
+
 
         backend_queue.put(["stop"])
         backend_process.join()

@@ -21,6 +21,9 @@ from utils_cali.eval_cali_utils import eval_ate
 
 import rich
 
+import pickle
+import os
+
 class Simulator():
     def __init__(self, path):
         self.load_intrinsics(path)
@@ -90,6 +93,9 @@ class FrontEndCali(FrontEnd):
                         save_gaussians(
                             self.gaussians, self.save_dir, "final", final=True
                         )
+                        os.makedirs(os.path.join(self.save_dir, 'gs'), exist_ok=True)
+                        with open(self.save_dir + '/gs/instance.pkl', 'wb') as f:
+                            pickle.dump(self.gaussians, f)
                     break
 
                 if self.requested_init:

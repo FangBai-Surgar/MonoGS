@@ -23,6 +23,7 @@ from gaussian_splatting.utils.system_utils import mkdir_p
 from utils.logging_utils import Log
 
 import copy
+import pickle
 # write a dict
 
 def evaluate_evo(poses_gt, poses_est, plot_dir, label, monocular=False):
@@ -202,3 +203,54 @@ def eval_rendering(
         indent=4,
     )
     return output
+
+def save_gaussians_class(save_dir, gaussians):
+    os.makedirs(os.path.join(save_dir, 'gs'), exist_ok=True)
+    with open(save_dir + '/gs/instance.pkl', 'wb') as f:
+        pickle.dump(gaussians, f)
+
+def save_cali(save_dir, frames, kf_indices):
+    cali_data = dict()
+    cali_id, focal_est, focal_gt = [], [], []
+    kappa_est, kappa_gt = [], []
+    focal_percentage = []
+
+    for kf_id in kf_indices:
+        kf = frames[kf_id]
+
+        cali_id.append(frames[kf_id].uid)
+        focal_est.append(frames[kf_id].fx)
+        focal_gt.append(frames[kf_id].fx_init)
+        focal_percentage.append( (frames[kf_id].fx_init - frames[kf_id].fx) / frames[kf_id].fx_init)
+
+        kappa_est.append(frames[kf_id].kappa)
+        kappa_gt.append(frames[kf_id].kappa_init)
+
+    cali_data["cali_id"] = cali_id
+    cali_data["focal_est"] = focal_est
+    cali_data["focal_gt"] = focal_gt
+    cali_data["kappa_est"] = kappa_est
+    cali_data["kappa_gt"] = kappa_gt
+    cali_data["focal_percentage"] = focal_percentage
+
+    cali_dir = os.path.join(save_dir, "cali")
+    plot_dir = os.path.join(save_dir, "cali", "plot")
+    mkdir_p(cali_dir)
+    mkdir_p(plot_dir)
+    json.dump(
+        cali_data,
+        open(os.path.join(cali_dir, "final_result.json"), "w", encoding="utf-8"),
+        indent=4,
+    )
+    plt.figure(figsize=(10, 6))
+    plt.plot(cali_data['cali_id'], cali_data['focal_percentage'], marker='o')
+    plt.title('Focal Percentage vs Calibration ID')
+    plt.xlabel('Calibration ID')
+    plt.ylabel('Focal Percentage')
+    plt.grid(True)
+
+    # Save the plot in the plot directory
+    plot_file_path = os.path.join(plot_dir, 'focal_percentage_vs_cali_id.png')
+    plt.savefig(plot_file_path)
+    plt.close()
+
