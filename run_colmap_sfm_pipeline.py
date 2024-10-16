@@ -154,7 +154,7 @@ if __name__ == "__main__":
     '''
 
 
-    use_pcd_from_depth_prediction = False
+    use_pcd_from_depth_prediction = True
 
 
     # perform colmap reconstruction
@@ -221,7 +221,7 @@ if __name__ == "__main__":
     sfm.start_gaussian_iter = 0
     sfm.stop_gaussian_iter = 100000
 
-    sfm.add_dense_pcd_iter = 1000
+    sfm.add_dense_pcd_iter = 500
 
 
     sfm.require_calibration = True

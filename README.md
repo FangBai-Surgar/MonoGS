@@ -25,7 +25,7 @@ pip install open3d
 pip install glfw
 pip install imgviz
 pip install pyopengl
-pip install glm
+pip install PyGLM
 pip install rich
 pip install trimesh
 pip install evo
@@ -35,6 +35,8 @@ pip install evo
 pip install gradio_imageslider
 pip install gradio==4.29.0
 pip install pycolmap
+pip install imgui
+pip install imageio
 ```
 
 ## Installation
