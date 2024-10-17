@@ -735,7 +735,7 @@ class SFM_GUI:
                 0, 0, width, height, gl.GL_RGB, gl.GL_UNSIGNED_BYTE
             )
             img = np.frombuffer(bufferdata, np.uint8, -1).reshape(height, width, 3)
-            cv2.flip(img, 0, img)
+            img = cv2.flip(img, 0)
             render_img = o3d.geometry.Image(img)
             glfw.swap_buffers(self.window_gl)
         else:
