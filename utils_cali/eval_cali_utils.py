@@ -67,7 +67,7 @@ def evaluate_evo(poses_gt, poses_est, plot_dir, label, monocular=False):
         max_map=ape_stats["max"],
     )
     ax.legend()
-    plt.savefig(os.path.join(plot_dir, "evo_2dplot_{}.png".format(str(label))), dpi=90)
+    plt.savefig(os.path.join(plot_dir, "evo_2dplot_{}.pdf".format(str(label))), dpi=90)
 
     # if label == "final":
     plot_mode = evo.tools.plot.PlotMode.xyz
@@ -87,7 +87,7 @@ def evaluate_evo(poses_gt, poses_est, plot_dir, label, monocular=False):
         max_map=ape_stats["max"],
     )
     ax.legend()
-    plt.savefig(os.path.join(plot_dir, "evo_3dplot_{}.png".format(str(label))), dpi=90)
+    plt.savefig(os.path.join(plot_dir, "evo_3dplot_{}.pdf".format(str(label))), dpi=90)
     return ape_stat
 
 
@@ -221,7 +221,7 @@ def save_cali(save_dir, frames, kf_indices):
         cali_id.append(frames[kf_id].uid)
         focal_est.append(frames[kf_id].fx)
         focal_gt.append(frames[kf_id].fx_init)
-        focal_percentage.append( (frames[kf_id].fx_init - frames[kf_id].fx) / frames[kf_id].fx_init)
+        focal_percentage.append( abs(frames[kf_id].fx_init - frames[kf_id].fx) / frames[kf_id].fx_init)
 
         kappa_est.append(frames[kf_id].kappa)
         kappa_gt.append(frames[kf_id].kappa_init)
@@ -250,7 +250,23 @@ def save_cali(save_dir, frames, kf_indices):
     plt.grid(True)
 
     # Save the plot in the plot directory
+    plot_file_path = os.path.join(plot_dir, 'focal_percentage_vs_cali_id.pdf')
     plot_file_path = os.path.join(plot_dir, 'focal_percentage_vs_cali_id.png')
     plt.savefig(plot_file_path)
     plt.close()
 
+    plt.figure(figsize=(10, 6))
+    plt.plot(cali_data['cali_id'], cali_data["focal_gt"], marker='o', label='Focal Ground Truth')
+    plt.plot(cali_data['cali_id'], cali_data["focal_est"], marker='o', label='Focal Estimate')
+    plt.title('Focal vs Calibration ID')
+    plt.xlabel('Calibration ID')
+    plt.ylabel('Focal Percentage')
+    plt.grid(True)
+    # Display the legend
+    plt.legend()
+
+    # Save the plot in the plot directory
+    plot_file_path = os.path.join(plot_dir, 'focal_vs_cali_id.pdf')
+    plot_file_path = os.path.join(plot_dir, 'focal_vs_cali_id.png')
+    plt.savefig(plot_file_path)
+    plt.close()

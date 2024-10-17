@@ -17,7 +17,7 @@ from utils.slam_utils import get_loss_tracking, get_median_depth
 from optimizers import CalibrationOptimizer
 from gaussian_scale_space import image_conv_gaussian_separable
 from utils.slam_frontend import FrontEnd
-from utils_cali.eval_cali_utils import eval_ate
+from utils_cali.eval_cali_utils import eval_ate, save_gaussians_class, save_cali
 
 import rich
 
@@ -93,9 +93,9 @@ class FrontEndCali(FrontEnd):
                         save_gaussians(
                             self.gaussians, self.save_dir, "final", final=True
                         )
-                        os.makedirs(os.path.join(self.save_dir, 'gs'), exist_ok=True)
-                        with open(self.save_dir + '/gs/instance.pkl', 'wb') as f:
-                            pickle.dump(self.gaussians, f)
+                        save_gaussians_class(self.save_dir, self.gaussians)
+                        save_cali(self.save_dir, self.cameras, [i for i in range(0, self.dataset.num_imgs)])
+
                     break
 
                 if self.requested_init:
