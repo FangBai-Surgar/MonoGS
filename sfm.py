@@ -416,8 +416,8 @@ class SFM(mp.Process):
 
 
 
-        focal_stack, focal_grad_stack = self.calibration_optimizer.get_focal_statistics(all = True)
-        LineDetection(focal_stack[:80], focal_grad_stack[:80]).plot_figure(fname = pathlib.Path.home()/( "focal_cost_function_scale"+str(self.gaussian_scale_t)+".pdf" ) )
+        # focal_stack, focal_grad_stack = self.calibration_optimizer.get_focal_statistics(all = True)
+        # LineDetection(focal_stack[:80], focal_grad_stack[:80]).plot_figure(fname = pathlib.Path.home()/( "focal_cost_function_scale"+str(self.gaussian_scale_t)+".pdf" ) )
          
         
 

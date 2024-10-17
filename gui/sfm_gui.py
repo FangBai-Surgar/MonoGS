@@ -214,9 +214,9 @@ class SFM_GUI:
         self.opacity_chbox.checked = False
         chbox_tile_geometry.add_child(self.opacity_chbox)
 
-        self.time_shader_chbox = gui.Checkbox("Time Shader")
-        self.time_shader_chbox.checked = False
-        chbox_tile_geometry.add_child(self.time_shader_chbox)
+        # self.time_shader_chbox = gui.Checkbox("Time Shader")
+        # self.time_shader_chbox.checked = False
+        # chbox_tile_geometry.add_child(self.time_shader_chbox)
 
         self.elipsoid_chbox = gui.Checkbox("Elipsoid Shader")
         self.elipsoid_chbox.checked = False
@@ -641,7 +641,7 @@ class SFM_GUI:
 
 
         if (
-            self.time_shader_chbox.checked
+            False # self.time_shader_chbox.checked
             and self.gaussian_cur is not None
             and type(self.gaussian_cur) == GaussianPacket
         ):
