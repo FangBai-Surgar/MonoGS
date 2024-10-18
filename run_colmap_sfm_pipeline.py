@@ -32,6 +32,8 @@ from colmap import ColMap
 from colmap import assemble_3DGS_cameras
 
 
+from gaussian_viewer import Viewer, create_gaussians_gl
+
 
 def init_dense_pcd_from_network (viewpoint_stack, reconstruction: ColMap, num_points = 20000):
 
@@ -115,7 +117,7 @@ if __name__ == "__main__":
     pipe = pp.extract(args)
 
 
-    opt.iterations = 5000
+    opt.iterations = 100
     opt.densification_interval = 30
     opt.opacity_reset_interval = 200
     opt.densify_from_iter = 49
@@ -242,5 +244,8 @@ if __name__ == "__main__":
 
     sfm_process.join()
     sfm_gui.Log("Finished", tag="SfM")
+
+
+    Fig = Viewer(viewpoint_stack=viewpoint_stack,  gaussians_gl= create_gaussians_gl(gaussians))
 
 

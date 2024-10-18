@@ -27,6 +27,7 @@ import random
 import numpy as np
 
 
+from gaussian_viewer import Viewer, create_gaussians_gl
 
 
 
@@ -293,3 +294,8 @@ if __name__ == "__main__":
 
     # All done
     Log("Done.")
+
+    viewpoint_stack = slam.backend.viewpoints,
+    gaussians = slam.backend.gaussians
+
+    Fig = Viewer(viewpoint_stack=viewpoint_stack,  gaussians_gl= create_gaussians_gl(gaussians))

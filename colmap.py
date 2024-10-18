@@ -213,6 +213,27 @@ def assemble_3DGS_cameras(colmap : ColMap, downsample_scale = 1.0,  use_same_cal
 
 
 
+def create_trajectory_lineset(viewpoint_stack, color=[0, 0, 1]):
+    camera_centers = []
+    for viewpoint in viewpoint_stack:
+        camera_centers.append ( viewpoint.camera_center.detach().cpu().numpy() )
+    points = np.array( camera_centers )
+
+    lines = []
+    for i in range(len(camera_centers)-1):
+        lines.append( [i, i+1] )
+
+    colors = [color for i in range(len(lines))]
+
+    odometry_line_set = o3d.geometry.LineSet()
+    odometry_line_set.points = o3d.utility.Vector3dVector(points)
+    odometry_line_set.lines = o3d.utility.Vector2iVector(lines)
+    odometry_line_set.colors = o3d.utility.Vector3dVector(colors)
+    
+    return odometry_line_set
+
+
+
 if __name__ == "__main__":
 
     image_dir = "/home/fang/SURGAR/Colmap_Test/Fountain/images"
@@ -265,6 +286,9 @@ if __name__ == "__main__":
             extrinsic[:3, 3] = T
             cameraLines = o3d.geometry.LineSet.create_camera_visualization(view_width_px=WIDTH, view_height_px=HEIGHT, intrinsic=intrinsic, extrinsic=extrinsic)
             vis.add_geometry(cameraLines)
+
+        odometryLines = create_trajectory_lineset(viewpoint_stack)
+        vis.add_geometry(odometryLines)
 
 
         # visualize and block

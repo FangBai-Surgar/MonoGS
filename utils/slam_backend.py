@@ -16,6 +16,7 @@ from optimizers import CalibrationOptimizer, PoseOptimizer, lr_exp_decay_helper
 import numpy as np
 import rich
 
+
 class BackEnd(mp.Process):
     def __init__(self, config):
         super().__init__()
@@ -392,7 +393,7 @@ class BackEnd(mp.Process):
     def save_calib_results (self):
         print(f"\n\nCalibration results")
         for cam_id, viewpoint in self.viewpoints.items():
-            print(f"cam_id: {cam_id}: \tcalib_id: {viewpoint.calibration_identifier}: fx = {viewpoint.fx:.3f}, fy = {viewpoint.fy:.3f}, kappa = {viewpoint.kappa:.6f}")
+            print(f"cam_id: {cam_id}: \tcalib_id: {viewpoint.calibration_identifier}: fx = {viewpoint.fx:.3f}, fy = {viewpoint.fy:.3f}, kappa = {viewpoint.kappa:.6f}")        
 
 
     def run(self):
