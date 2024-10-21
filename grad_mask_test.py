@@ -40,8 +40,8 @@ def update(replica_origin_dataset, replica_cali_dataset, replica_cali_16_45_data
     return replica_origin_img, origin_grad_mask, replica_cali_img, cali_grad_mask, replica_cali_16_45_img, cali_grad_mask_16_45
 
 
-replica_config_path = "./configs/mono/replica_small/office4_sp.yaml"
-replica_cali_config_path = "./configs/mono/replica_small_cali/office4_sp.yaml"
+replica_config_path = "./configs/mono/replica_small/office3_sp.yaml"
+replica_cali_config_path = "./configs/mono/replica_small_cali/office3_v5_sp.yaml"
 
 
 replica_config = load_config(replica_config_path)
@@ -89,8 +89,10 @@ while True:
     elif key == 83:  # Right arrow key (key code may vary; check cv2 documentation)
         cur_frame_idx += 1  # Move to the next frame
         images = update(replica_origin_dataset, replica_cali_dataset, replica_cali_16_45_dataset, cur_frame_idx)
+        print(cur_frame_idx)
     elif key == 81:  # Left arrow key (key code may vary; check cv2 documentation)
         cur_frame_idx -= 1 if cur_frame_idx >1 else 0 # Move to the previous frame
+        print(cur_frame_idx)
         images = update(replica_origin_dataset, replica_cali_dataset, replica_cali_16_45_dataset, cur_frame_idx)
         if cur_frame_idx >= 600:
             cur_frame_idx = 0  # Reset to first frame if we exceed the range
