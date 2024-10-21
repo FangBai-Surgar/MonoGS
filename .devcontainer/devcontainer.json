@@ -1,8 +1,8 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
 {
-	"name": "mono_gs_cali_cuda117",
-	// "name": "mono_gs_self_calibration_experiment_dev",
+	// "name": "mono_gs_cali_cuda117",
+	"name": "mono_gs_self_calibration_experiment_dev",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
 	// set dockerfile and set build args
 	"build": {
@@ -49,7 +49,7 @@
 	},
 	"runArgs": [
 		"--name",
-		"mono_gs_cali_cuda117",
+		"mono_gs_self_calibration_experiment_dev",
 		"--user=${localEnv:USERNAME}",
 		"--gpus=all",
 		"-e", "DISPLAY=${localEnv:DISPLAY}",

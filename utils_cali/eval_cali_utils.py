@@ -1,6 +1,7 @@
 import json
 import os
-
+import matplotlib
+matplotlib.use('Agg')
 import cv2
 import evo
 import evo.main_config
@@ -250,9 +251,10 @@ def save_cali(save_dir, frames, kf_indices):
     plt.grid(True)
 
     # Save the plot in the plot directory
-    plot_file_path = os.path.join(plot_dir, 'focal_percentage_vs_cali_id.pdf')
-    plot_file_path = os.path.join(plot_dir, 'focal_percentage_vs_cali_id.png')
-    plt.savefig(plot_file_path)
+    plot_file_path_pdf = os.path.join(plot_dir, 'focal_percentage_vs_cali_id.pdf')
+    plot_file_path_png = os.path.join(plot_dir, 'focal_percentage_vs_cali_id.png')
+    plt.savefig(plot_file_path_pdf)
+    plt.savefig(plot_file_path_png)
     plt.close()
 
     plt.figure(figsize=(10, 6))
@@ -266,7 +268,8 @@ def save_cali(save_dir, frames, kf_indices):
     plt.legend()
 
     # Save the plot in the plot directory
-    plot_file_path = os.path.join(plot_dir, 'focal_vs_cali_id.pdf')
-    plot_file_path = os.path.join(plot_dir, 'focal_vs_cali_id.png')
-    plt.savefig(plot_file_path)
+    plot_file_path_pdf = os.path.join(plot_dir, 'focal_vs_cali_id.pdf')
+    plot_file_path_png = os.path.join(plot_dir, 'focal_vs_cali_id.png')
+    plt.savefig(plot_file_path_pdf)
+    plt.savefig(plot_file_path_png)
     plt.close()
