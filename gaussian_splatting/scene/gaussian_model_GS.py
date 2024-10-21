@@ -166,8 +166,63 @@ class GaussianModel:
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
 
 
+    def extend_from_pcd(self, pcd : BasicPointCloud, point_size = 1.0):
+        fused_point_cloud = torch.from_numpy(np.asarray(pcd.points)).float().cuda()
+        fused_color = RGB2SH(torch.from_numpy(np.asarray(pcd.colors)).float().cuda())
+        features = (
+            torch.zeros((fused_color.shape[0], 3, (self.max_sh_degree + 1) ** 2))
+            .float()
+            .cuda()
+        )
+        features[:, :3, 0] = fused_color
+        features[:, 3:, 1:] = 0.0
 
-    def create_pcd_from_image_and_depth(self, cam, rgb, depth, downsample_factor = 32):
+        print("Number of points added : ", fused_point_cloud.shape[0])
+
+        dist2 = (
+            torch.clamp_min(
+                distCUDA2(torch.from_numpy(np.asarray(pcd.points)).float().cuda()),
+                0.0000001,
+            )
+            * point_size
+        )
+        scales = torch.log(torch.sqrt(dist2))[..., None].repeat(1, 3)
+        rots = torch.zeros((fused_point_cloud.shape[0], 4), device="cuda")
+        rots[:, 0] = 1
+        opacities = inverse_sigmoid(
+            0.5 # 0.1 in original 3DGS work
+            * torch.ones(
+                (fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda"
+            )
+        )
+
+        new_xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
+        new_features_dc = nn.Parameter(features[:,:,0:1].transpose(1, 2).contiguous().requires_grad_(True))
+        new_features_rest = nn.Parameter(features[:,:,1:].transpose(1, 2).contiguous().requires_grad_(True))
+        new_scaling = nn.Parameter(scales.requires_grad_(True))
+        new_rotation = nn.Parameter(rots.requires_grad_(True))
+        new_opacity = nn.Parameter(opacities.requires_grad_(True))
+
+        new_max_radii2D = torch.zeros((new_xyz.shape[0]), device="cuda")
+        # new_unique_kfIDs = torch.ones((new_xyz.shape[0])).int() * kf_id
+        # new_n_obs = torch.zeros((new_xyz.shape[0])).int()
+        self.max_radii2D = torch.cat((self.max_radii2D, new_max_radii2D)) # will be reset to zero in densification_postfix
+
+        self.densification_postfix(
+            new_xyz,
+            new_features_dc,
+            new_features_rest,
+            new_opacity,
+            new_scaling,
+            new_rotation
+        )
+        
+
+
+
+
+    @staticmethod
+    def create_pcd_from_image_and_depth(cam, rgb, depth, downsample_factor = 4):
 
         rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
             rgb,

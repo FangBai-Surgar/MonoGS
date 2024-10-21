@@ -200,6 +200,8 @@ class CalibrationOptimizer:
     
 
     def undo_focal_step(self):
+        if self.focal_stack is None or len(self.focal_stack) == 0:
+            return
 
         self.focal_grad_stack.pop()
         prev_focal_normalized = self.focal_stack.pop()
@@ -242,7 +244,8 @@ class CalibrationOptimizer:
             if scale is not None:
                 lr = param_group["lr"]
                 param_group["lr"] = scale * lr if lr >= 0.00001 else lr
-            rich.print("[bold green]focal_optimizer: update learning rate to:[/bold green]", param_group["lr"])
+            if param_group["name"] == "calibration_f_{}".format(self.current_calib_id):
+                rich.print("[bold green]focal_optimizer: update learning rate to:[/bold green]", param_group["lr"])
 
 
 
@@ -253,7 +256,8 @@ class CalibrationOptimizer:
             if scale is not None:
                 lr = param_group["lr"]
                 param_group["lr"] = scale * lr if lr >= 0.00001 else lr
-            rich.print("[bold green]kappa_optimizer: update learning rate to:[/bold green]", param_group["lr"])
+            if param_group["name"] == "calibration_k_{}".format(self.current_calib_id):
+                rich.print("[bold green]kappa_optimizer: update learning rate to:[/bold green]", param_group["lr"])
 
 
 

@@ -136,9 +136,10 @@ class FrontEnd(mp.Process):
         self.request_init(cur_frame_idx, viewpoint, depth_map)
         self.reset = False
 
-    def tracking(self, cur_frame_idx, viewpoint):
-        prev = self.cameras[cur_frame_idx - self.use_every_n_frames]
-        viewpoint.update_RT(prev.R, prev.T)
+    def tracking(self, cur_frame_idx, viewpoint, continue_optimize=False):
+        if (not continue_optimize):
+            prev = self.cameras[cur_frame_idx - self.use_every_n_frames]
+            viewpoint.update_RT(prev.R, prev.T)
         
         opt_params = []
         opt_params.append(
@@ -463,9 +464,7 @@ class FrontEnd(mp.Process):
 
                 if self.require_calibration and self.initialized and self.signal_calibration_change:
                     self.init_focal (viewpoint, optimizer_type = "SGD", gaussian_scale_t = 0.0,  beta = 0.0, learning_rate = lr, max_iter_num = 20, step_safe_guard = True)
-
-
-                # render_pkg = self.tracking(cur_frame_idx, viewpoint)
+                    render_pkg = self.tracking(cur_frame_idx, viewpoint, continue_optimize=True) # render again with the best parameters
     
 
                 current_window_dict = {}
@@ -509,7 +508,12 @@ class FrontEnd(mp.Process):
                     )
                 if self.single_thread:
                     create_kf = check_time and create_kf
-                if create_kf:
+                if create_kf: #or self.signal_calibration_change:
+                    # removed = None
+                    # if (not create_kf) and self.signal_calibration_change: # if not a keyframe, but calibration changes
+                    #     self.current_window[0] = cur_frame_idx # replace the last keyframe with the current keyframe
+                    #     removed = [0]
+                    # else:
                     self.current_window, removed = self.add_to_window(
                         cur_frame_idx,
                         curr_visibility,
@@ -629,25 +633,33 @@ class FrontEnd(mp.Process):
                 image_scale_t = image
                 gt_image_scale_t = gt_image
 
-            calibration_optimizers.zero_grad(set_to_none=True)
+            
             huber_loss_function = torch.nn.SmoothL1Loss(reduction = 'mean', beta = beta) # beta = 0, this becomes l1 loss
             loss = huber_loss_function(image_scale_t*mask, gt_image_scale_t*mask)
-            loss.backward()
-
-            # rich.print(f"[bold red]loss: [/bold red] {loss:.10f}")
+            
+            # print(f"focal_init: iter: [{itr}]")
             if step_safe_guard and (loss > loss_prev):
                 rich.print(f"[bold yellow][Warning]: learning rate is too big! revoke previous step and shrink learning rate[/bold yellow]")
+                # print(f"loss_prev = {loss_prev},   loss = {loss},   current_fx = {viewpoint.fx}")
                 calibration_optimizers.undo_focal_step()
+                # print(f"\t after revoling, current_fx = {viewpoint.fx}")
                 calibration_optimizers.update_focal_learning_rate(scale=0.5)
+                with torch.no_grad():
+                    calibration_optimizers.focal_step() # step again with old gradient
+                # print(f"\t update to,      current_fx = {viewpoint.fx}\n")
                 continue
 
-            loss_prev = loss
+            if loss < loss_prev:
+                loss_prev = loss
 
+            # clear old gradient, and compute new gradient
+            calibration_optimizers.zero_grad(set_to_none=True)
+            loss.backward()
+            
             with torch.no_grad():
                 converged = calibration_optimizers.focal_step() # optimize focal only
-                
-            if converged:
-                break
+                if converged:
+                    break
 
         return calibration_optimizers.estimate_step_size()
     
