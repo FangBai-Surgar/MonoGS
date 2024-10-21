@@ -85,7 +85,7 @@ class FrontEndCali(FrontEnd):
                         eval_ate(
                             self.cameras,
                             # [i for i in range(0, self.dataset.num_imgs)], #when final frame is reached, evaluate the ATE of all frames
-                            self.kf_indices
+                            self.kf_indices,
                             self.save_dir,
                             0,
                             final=True,
