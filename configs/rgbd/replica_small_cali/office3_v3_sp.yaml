@@ -1,6 +1,6 @@
-inherit_from: "configs/mono/replica_small_cali/base_config.yaml"
+inherit_from: "configs/rgbd/replica_small_cali/base_config.yaml"
 Dataset:
-  dataset_path: "/datasets/replica_small_cali/office3_v1"
+  dataset_path: "/datasets/replica_small_cali/office3_v3"
   intrinsic_filename: "intrinsics.txt"
   type: 'replica'
   single_thread: True

@@ -1,9 +1,9 @@
 inherit_from: "configs/mono/replica_small_cali/base_config.yaml"
 Dataset:
-  dataset_path: "/datasets/replica_small_cali/office3_v1"
+  dataset_path: "/datasets/replica_small_cali/office3_v10"
   intrinsic_filename: "intrinsics.txt"
   type: 'replica'
-  single_thread: True
+  single_thread: False
   Calibration:
     fx: 500.0
     fy: 500.0
