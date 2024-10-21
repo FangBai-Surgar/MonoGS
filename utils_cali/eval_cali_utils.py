@@ -210,7 +210,7 @@ def save_gaussians_class(save_dir, gaussians):
     with open(save_dir + '/gs/instance.pkl', 'wb') as f:
         pickle.dump(gaussians, f)
 
-def save_cali(save_dir, frames, kf_indices):
+def save_cali(save_dir, frames, kf_indices, N_frames=None):
     cali_data = dict()
     cali_id, focal_est, focal_gt = [], [], []
     kappa_est, kappa_gt = [], []
@@ -245,31 +245,27 @@ def save_cali(save_dir, frames, kf_indices):
     )
     plt.figure(figsize=(10, 6))
     plt.plot(cali_data['cali_id'], cali_data['focal_percentage'], marker='o')
-    plt.title('Focal Percentage vs Calibration ID')
-    plt.xlabel('Calibration ID')
+    plt.title('Focal Percentage vs Frame ID')
+    plt.xlabel('Frame ID')
     plt.ylabel('Focal Percentage')
     plt.grid(True)
 
     # Save the plot in the plot directory
     plot_file_path_pdf = os.path.join(plot_dir, 'focal_percentage_vs_cali_id.pdf')
-    plot_file_path_png = os.path.join(plot_dir, 'focal_percentage_vs_cali_id.png')
     plt.savefig(plot_file_path_pdf)
-    plt.savefig(plot_file_path_png)
     plt.close()
 
     plt.figure(figsize=(10, 6))
     plt.plot(cali_data['cali_id'], cali_data["focal_gt"], marker='o', label='Focal Ground Truth')
     plt.plot(cali_data['cali_id'], cali_data["focal_est"], marker='o', label='Focal Estimate')
-    plt.title('Focal vs Calibration ID')
-    plt.xlabel('Calibration ID')
-    plt.ylabel('Focal Percentage')
+    plt.title('Focal vs Frame ID')
+    plt.xlabel('Frame ID')
+    plt.ylabel('Focal')
     plt.grid(True)
     # Display the legend
     plt.legend()
 
     # Save the plot in the plot directory
     plot_file_path_pdf = os.path.join(plot_dir, 'focal_vs_cali_id.pdf')
-    plot_file_path_png = os.path.join(plot_dir, 'focal_vs_cali_id.png')
     plt.savefig(plot_file_path_pdf)
-    plt.savefig(plot_file_path_png)
     plt.close()

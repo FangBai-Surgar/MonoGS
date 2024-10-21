@@ -153,8 +153,8 @@ class SLAM:
 
             ATE = eval_ate(
                 self.frontend.cameras,
-                [i for i in range(0, N_frames)],
-                # self.frontend.kf_indices,
+                # [i for i in range(0, N_frames)],
+                self.frontend.kf_indices,
                 self.save_dir,
                 0,
                 final=True,
@@ -218,7 +218,7 @@ class SLAM:
             save_gaussians(self.gaussians, self.save_dir, "final_after_opt", final=True)
             # save gaussians class
             save_gaussians_class(self.save_dir, self.gaussians)
-            save_cali(self.save_dir, self.frontend.cameras, [i for i in range(0, N_frames)])
+            save_cali(self.save_dir, self.frontend.cameras, self.frontend.kf_indices, N_frames)
 
 
 

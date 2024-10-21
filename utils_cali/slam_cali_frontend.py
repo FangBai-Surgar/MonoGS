@@ -84,7 +84,8 @@ class FrontEndCali(FrontEnd):
                     if self.save_results:
                         eval_ate(
                             self.cameras,
-                            [i for i in range(0, self.dataset.num_imgs)], #when final frame is reached, evaluate the ATE of all frames
+                            # [i for i in range(0, self.dataset.num_imgs)], #when final frame is reached, evaluate the ATE of all frames
+                            self.kf_indices
                             self.save_dir,
                             0,
                             final=True,
@@ -94,7 +95,7 @@ class FrontEndCali(FrontEnd):
                             self.gaussians, self.save_dir, "final", final=True
                         )
                         save_gaussians_class(self.save_dir, self.gaussians)
-                        save_cali(self.save_dir, self.cameras, [i for i in range(0, self.dataset.num_imgs)])
+                        save_cali(self.save_dir, self.cameras, self.kf_indices, self.dataset.num_imgs)
 
                     break
 
