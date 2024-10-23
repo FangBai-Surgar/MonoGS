@@ -87,8 +87,9 @@ class Camera(nn.Module):
         # self.projection_matrix = self.projection_matrix.to(device=device)
 
     @staticmethod
-    def init_from_dataset(dataset, idx, projection_matrix):
-        if dataset.focal_changed: # property of the simulated dataset
+    def init_from_dataset(dataset, idx, projection_matrix=None):
+        if hasattr(dataset, 'focal_changed') and dataset.focal_changed: # property of the simulated dataset
+            print(dataset[idx])
             gt_color, gt_depth, gt_pose, fx, fy, cx, cy, fovx, fovy, height, width, cali_id = dataset[idx]
             return Camera(
                 idx,
@@ -122,7 +123,7 @@ class Camera(nn.Module):
                 dataset.fovy,
                 dataset.height,
                 dataset.width,
-                None,
+                cali_id = 0,
                 device=dataset.device,
             )
 
@@ -190,9 +191,10 @@ class Camera(nn.Module):
         img_grad_intensity = torch.sqrt(gray_grad_v**2 + gray_grad_h**2)
 
         if config["Dataset"]["type"] == "replica":
-            row, col = config["Dataset"]["grad_mask_row"], config["Dataset"]["grad_mask_col"]
-            # row, col = 16, 16
-            # row, col = 32, 32
+            if ("grad_mask_row" in config["Dataset"].keys()) and ("grad_mask_col" in config["Dataset"].keys()):
+                row, col = config["Dataset"]["grad_mask_row"], config["Dataset"]["grad_mask_col"]
+            else:
+                row, col = 32, 32
             multiplier = edge_threshold
             _, h, w = self.original_image.shape
             for r in range(row):

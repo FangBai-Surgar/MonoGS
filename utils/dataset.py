@@ -402,7 +402,6 @@ class TUMDataset(MonocularDataset):
         self.color_paths = parser.color_paths
         self.depth_paths = parser.depth_paths
         self.poses = parser.poses
-        self.focal_changed = False
 
 
 class ReplicaDataset(MonocularDataset):
@@ -414,7 +413,6 @@ class ReplicaDataset(MonocularDataset):
         self.color_paths = parser.color_paths
         self.depth_paths = parser.depth_paths
         self.poses = parser.poses
-        self.focal_changed = False
 
 
 class EurocDataset(StereoDataset):
@@ -426,7 +424,6 @@ class EurocDataset(StereoDataset):
         self.color_paths = parser.color_paths
         self.color_paths_r = parser.color_paths_r
         self.poses = parser.poses
-        self.focal_changed = False
 
 
 class RealsenseDataset(BaseDataset):

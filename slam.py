@@ -14,7 +14,6 @@ from gaussian_splatting.scene.gaussian_model import GaussianModel
 from gaussian_splatting.utils.system_utils import mkdir_p
 from gui import gui_utils, slam_gui
 from utils.config_utils import load_config
-# from simulated_dataset_loader import load_dataset
 from utils.dataset import load_dataset
 from utils.eval_utils import eval_ate, eval_rendering, save_gaussians
 from utils.logging_utils import Log
@@ -97,6 +96,7 @@ class SLAM:
         self.frontend.q_main2vis = q_main2vis
         self.frontend.q_vis2main = q_vis2main
         # online calibration control
+        self.frontend.MODULE_TEST_CALIBRATION = calib_opts.calib_module_test # for test and debugging, using --calib_module_test
         self.frontend.require_calibration = calib_opts.require_calibration
         self.frontend.set_hyperparams()
 
@@ -237,6 +237,7 @@ if __name__ == "__main__":
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--require_calibration", action="store_true", default=False)
     parser.add_argument("--allow_lens_distortion", action="store_true", default=False)
+    parser.add_argument("--calib_module_test", action="store_true", default=False)
 
     args = parser.parse_args(sys.argv[1:])
 
@@ -252,6 +253,7 @@ if __name__ == "__main__":
     # adjust controlo params
     calib_opts.require_calibration = args.require_calibration
     calib_opts.allow_lens_distortion = args.require_calibration and args.allow_lens_distortion # activated only when require_calibration = True
+    calib_opts.calib_module_test = args.calib_module_test
 
     if args.eval:
         Log("Running MonoGS in Evaluation Mode")
@@ -266,6 +268,7 @@ if __name__ == "__main__":
         config["Results"]["use_wandb"] = True
         Log("\trequire_calibration=" + str(calib_opts.require_calibration))
         Log("\tallow_lens_distortion=" + str(calib_opts.allow_lens_distortion))
+        Log("\tcalib_module_test=" + str(calib_opts.calib_module_test))
 
     if config["Results"]["save_results"]:
         mkdir_p(config["Results"]["save_dir"])
@@ -279,6 +282,7 @@ if __name__ == "__main__":
         config["Results"]["save_dir"] = save_dir
         config["calib_opts_require_calibration"] = calib_opts.require_calibration
         config["calib_opts_allow_lens_distortion"] = calib_opts.allow_lens_distortion
+        config["calib_module_test"] = calib_opts.calib_module_test
         mkdir_p(save_dir)
         with open(os.path.join(save_dir, "config.yml"), "w") as file:
             documents = yaml.dump(config, file)
