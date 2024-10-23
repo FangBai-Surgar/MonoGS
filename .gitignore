@@ -17,3 +17,5 @@ result*
 *.txt
 test_*.py
 screenshots
+*output/*
+image*

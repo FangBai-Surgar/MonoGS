@@ -2,7 +2,7 @@ Results:
   save_results: True
   save_dir: "results"
   save_trj: True
-  save_trj_kf_intv: 10
+  save_trj_kf_intv: 5 # 10
   use_gui: True
   eval_rendering: False
   eval_keyframes: False
@@ -33,11 +33,11 @@ Training:
   kf_interval: 5
   window_size: 8
   pose_window: 3
-  edge_threshold: 1.1
+  edge_threshold: 2.0 #1.1
   rgb_boundary_threshold: 0.01
 
   kf_translation: 0.08
-  kf_min_translation: 0.05
+  kf_min_translation: 0.02 # 0.05
   kf_overlap: 0.9
   kf_cutoff: 0.3
   prune_mode: 'slam'

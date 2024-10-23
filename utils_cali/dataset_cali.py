@@ -8,7 +8,7 @@ import cv2
 import OpenEXR
 import Imath
 
-from utils.dataset import BaseDataset, TUMDataset, ReplicaDataset, EurocDataset, RealsenseDataset
+from utils.dataset import ReplicaParser, BaseDataset, TUMDataset, ReplicaDataset, EurocDataset, RealsenseDataset
 from gaussian_splatting.utils.graphics_utils import focal2fov
 
 class SimulatedParser:
@@ -212,7 +212,9 @@ class SimulatedDataset(BaseDataset):
             .to(device=self.device, dtype=self.dtype)
         )
         pose = torch.from_numpy(pose).to(device=self.device)
-        print(f"image: {color_path}, cali_id: {cali_id}")
+        print(f"image: {color_path}, cali_id: {cali_id}, fx: {fx}, height: {image.shape[1]}")
+        # print(f"image: {color_path}, cali_id: {cali_id}, fx: {fx}, fy: {fy}, cx: {cx}, cy: {cy}, fovx: {fovx}, fovy: {fovy}, height: {height}, width: {width} ")
+        # print(f"image: {color_path}, pose_t: {pose[:3, 3]}, pose_R: {pose[:3, :3]}")
         return image, depth, pose, fx, fy, cx, cy, fovx, fovy, height, width, cali_id
         # return image, depth, pose
 
@@ -233,7 +235,10 @@ def load_dataset(args, path, config):
         dataset.focal_changed = False # Dynamically Adding the Attribute
         return dataset
     elif config["Dataset"]["type"] == "replica":
+        print("replica")
         dataset = ReplicaDataset(args, path, config)
+        # dataset.num_imgs = dataset.num_imgs
+        dataset.num_imgs = 600 if dataset.num_imgs > 600 else dataset.num_imgs
         dataset.focal_changed = False
         return dataset
     elif config["Dataset"]["type"] == "euroc":

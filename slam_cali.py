@@ -14,13 +14,13 @@ from gaussian_splatting.scene.gaussian_model import GaussianModel
 from gaussian_splatting.utils.system_utils import mkdir_p
 from gui import gui_utils, slam_gui
 from utils.config_utils import load_config
-from utils.eval_utils import eval_ate, save_gaussians
+from utils.eval_utils import save_gaussians
 from utils.logging_utils import Log
 from utils.multiprocessing_utils import FakeQueue
 from utils.slam_backend import BackEnd
 from utils_cali.slam_cali_frontend import FrontEndCali as FrontEnd
 from utils_cali.dataset_cali import load_dataset
-from utils_cali.eval_cali_utils import eval_rendering
+from utils_cali.eval_cali_utils import eval_ate, eval_rendering, save_gaussians_class, save_cali
 
 
 from typing import NamedTuple
@@ -28,9 +28,9 @@ from typing import NamedTuple
 import random
 import numpy as np
 
+import pickle
 
-
-
+# python slam_cali.py --config configs/mono/replica_cali/office4_sp.yaml --eval --require_calibration --allow_lens_distortion | tee output.txt
 
 class OnlineCalibrationSettings:
     def __init__ (self):
@@ -143,6 +143,7 @@ class SLAM:
 
         if self.eval_rendering:
             self.gaussians = self.frontend.gaussians
+            kf_indices = self.frontend.kf_indices
             if self.eval_keyframes: 
                 kf_indices = self.frontend.kf_indices
             else: # if the sequence is short, we can evaluate all the frames
@@ -152,7 +153,8 @@ class SLAM:
 
             ATE = eval_ate(
                 self.frontend.cameras,
-                kf_indices,
+                # [i for i in range(0, N_frames)],
+                self.frontend.kf_indices,
                 self.save_dir,
                 0,
                 final=True,
@@ -214,6 +216,11 @@ class SLAM:
             )
             wandb.log({"Metrics": metrics_table})
             save_gaussians(self.gaussians, self.save_dir, "final_after_opt", final=True)
+            # save gaussians class
+            save_gaussians_class(self.save_dir, self.gaussians)
+            save_cali(self.save_dir, self.frontend.cameras, self.frontend.kf_indices, N_frames)
+
+
 
         backend_queue.put(["stop"])
         backend_process.join()
@@ -240,8 +247,8 @@ if __name__ == "__main__":
 
     # Set up command line argument parser
     parser = ArgumentParser(description="Training script parameters")
-    parser.add_argument("--config", type=str)
-    parser.add_argument("--eval", action="store_true")
+    parser.add_argument("--config", type=str, default="configs/mono/replica_cali/office4_sp.yaml")
+    parser.add_argument("--eval", action="store_true", default=True)
     parser.add_argument("--require_calibration", action="store_true", default=False)
     parser.add_argument("--allow_lens_distortion", action="store_true", default=False)
 
@@ -258,7 +265,7 @@ if __name__ == "__main__":
     calib_opts = OnlineCalibrationSettings()
     # adjust controlo params
     calib_opts.require_calibration = args.require_calibration
-    calib_opts.allow_lens_distortion = args.allow_lens_distortion
+    calib_opts.allow_lens_distortion = args.allow_lens_distortion and args.require_calibration
     print(f"calib_opts.require_calibration: {calib_opts.require_calibration}")
     print(f"calib_opts.allow_lens_distortion: {calib_opts.allow_lens_distortion}")
 
@@ -267,7 +274,7 @@ if __name__ == "__main__":
         Log("Following config will be overriden")
         Log("\tsave_results=True")
         config["Results"]["save_results"] = True
-        Log("\tuse_gui=False")
+        Log("\tuse_gui=True")
         config["Results"]["use_gui"] = False
         Log("\teval_rendering=True")
         config["Results"]["eval_rendering"] = True

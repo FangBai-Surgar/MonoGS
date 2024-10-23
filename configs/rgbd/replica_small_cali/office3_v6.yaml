@@ -1,0 +1,23 @@
+inherit_from: "configs/rgbd/replica_small_cali/base_config.yaml"
+Dataset:
+  dataset_path: "/datasets/replica_small_cali/office3_v6"
+  intrinsic_filename: "intrinsics.txt"
+  type: 'replica'
+  single_thread: False
+  Calibration:
+    fx: 500.0
+    fy: 500.0
+    cx: 399.5
+    cy: 299.5
+    k1: 0.0
+    k2: 0.0
+    p1: 0.0
+    p2: 0.0
+    k3: 0.0
+    width: 800
+    height: 600
+    depth_scale: 6553.5
+    distorted: False
+  grad_mask_row: 32
+  grad_mask_col: 32
+
