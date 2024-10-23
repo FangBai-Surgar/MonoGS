@@ -115,6 +115,9 @@ class Viewer:
         gl.glEnable(gl.GL_DEPTH_TEST)
         gl.glDepthFunc(gl.GL_LEQUAL)
 
+        self.render_img = self.render_o3d_image()
+        self.widget3d.scene.set_background([1, 1, 1, 1], self.render_img)
+
 
         self.is_done = False
         threading.Thread(target=self._update_thread).start()
@@ -173,22 +176,23 @@ class Viewer:
 
 
 
+
     def _update_thread(self):
         # This is NOT the UI thread, need to call post_to_main_thread() to update
         # the scene or any part of the UI.
         while not self.is_done:
-            time.sleep(0.01)
-
             # ## compute_Gaussian_background here:            
-            render_img = self.render_o3d_image()
-
+            self.render_img = self.render_o3d_image()
             # Update the images. This must be done on the UI thread.
-            def update():                
-                self.widget3d.scene.set_background([1, 1, 1, 1], render_img)
+            def update():
+                self.widget3d.scene.set_background([1, 1, 1, 1], self.render_img)
+                time.sleep(0.01)
 
             if not self.is_done:
                 gui.Application.instance.post_to_main_thread(
                     self.window, update)
+                
+        o3d.visualization.gui.Application.instance.quit()
 
 
     def save_figure(self):
@@ -266,6 +270,7 @@ class Viewer:
         WIDTH, HEIGHT = self.g_camera.w, self.g_camera.h
         self.window_gl  = self.init_glfw(WIDTH, HEIGHT)
         self.g_renderer = render_ogl.OpenGLRenderer(WIDTH, HEIGHT)
+        # glfw.make_context_current(self.window_gl)
         
         glfw.poll_events()
         gl.glClearColor(0, 0, 0, 1.0)
