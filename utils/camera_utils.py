@@ -89,7 +89,6 @@ class Camera(nn.Module):
     @staticmethod
     def init_from_dataset(dataset, idx, projection_matrix=None):
         if hasattr(dataset, 'focal_changed') and dataset.focal_changed: # property of the simulated dataset
-            print(dataset[idx])
             gt_color, gt_depth, gt_pose, fx, fy, cx, cy, fovx, fovy, height, width, cali_id = dataset[idx]
             return Camera(
                 idx,
