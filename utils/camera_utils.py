@@ -87,26 +87,6 @@ class Camera(nn.Module):
         # self.projection_matrix = self.projection_matrix.to(device=device)
 
     @staticmethod
-<<<<<<< HEAD
-    def init_from_dataset(dataset, idx, projection_matrix = None):
-        gt_color, gt_depth, gt_pose = dataset[idx]
-        return Camera(
-            idx,
-            gt_color,
-            gt_depth,
-            gt_pose,
-            # projection_matrix,
-            dataset.fx,
-            dataset.fy,
-            dataset.cx,
-            dataset.cy,
-            dataset.fovx,
-            dataset.fovy,
-            dataset.height,
-            dataset.width,
-            device=dataset.device,
-        )
-=======
     def init_from_dataset(dataset, idx, projection_matrix):
         if dataset.focal_changed: # property of the simulated dataset
             gt_color, gt_depth, gt_pose, fx, fy, cx, cy, fovx, fovy, height, width, cali_id = dataset[idx]
@@ -145,7 +125,6 @@ class Camera(nn.Module):
                 None,
                 device=dataset.device,
             )
->>>>>>> Xinyi
 
     @staticmethod
     def init_from_gui(uid, T, FoVx, FoVy, fx, fy, cx, cy, H, W):
