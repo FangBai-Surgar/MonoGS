@@ -14,7 +14,8 @@ from gaussian_splatting.scene.gaussian_model import GaussianModel
 from gaussian_splatting.utils.system_utils import mkdir_p
 from gui import gui_utils, slam_gui
 from utils.config_utils import load_config
-from simulated_dataset_loader import load_dataset
+# from simulated_dataset_loader import load_dataset
+from utils.dataset import load_dataset
 from utils.eval_utils import eval_ate, eval_rendering, save_gaussians
 from utils.logging_utils import Log
 from utils.multiprocessing_utils import FakeQueue
