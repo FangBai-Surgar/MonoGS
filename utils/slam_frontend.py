@@ -330,6 +330,7 @@ class FrontEnd(mp.Process):
 
     def run(self):
         cur_frame_idx = 0
+<<<<<<< HEAD
         # projection_matrix = getProjectionMatrix2(
         #     znear=0.01,
         #     zfar=100.0,
@@ -342,6 +343,32 @@ class FrontEnd(mp.Process):
         # ).transpose(0, 1)
         # projection_matrix = projection_matrix.to(device=self.device)
         projection_matrix = None
+=======
+        if self.dataset.focal_changed: # for simulated dataset, fx, fy, cx, cy, height, width are changing
+            _,_,_,fx, fy, cx, cy, _, _, height, width, _ = self.dataset[cur_frame_idx]
+            projection_matrix = getProjectionMatrix2(
+                znear=0.01,
+                zfar=100.0,
+                fx=fx,
+                fy=fy,
+                cx=cx,
+                cy=cy,
+                W=width,
+                H=height,
+            ).transpose(0, 1)
+        else:
+            projection_matrix = getProjectionMatrix2(
+                znear=0.01,
+                zfar=100.0,
+                fx=self.dataset.fx,
+                fy=self.dataset.fy,
+                cx=self.dataset.cx,
+                cy=self.dataset.cy,
+                W=self.dataset.width,
+                H=self.dataset.height,
+            ).transpose(0, 1)
+        projection_matrix = projection_matrix.to(device=self.device)
+>>>>>>> Xinyi
         tic = torch.cuda.Event(enable_timing=True)
         toc = torch.cuda.Event(enable_timing=True)        
 
