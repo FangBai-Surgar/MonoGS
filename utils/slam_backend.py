@@ -559,7 +559,7 @@ class BackEnd(mp.Process):
 
                     ### The order of following three matters. prune goes last ###
                     if self.calibration_optimizers is not None:
-                        if (calibration_identifier_cnt < 2): # Don't update 3D structure with one view
+                        if (calibration_identifier_cnt == 1): # Don't update 3D structure with one view
                             lr1 = self.config["Training"]["be_focal_lr_cnt_s2"] if ("be_focal_lr_cnt_s2" in self.config["Training"].keys()) else 0.002
                             self.calibration_optimizers.update_focal_learning_rate(lr = lr1)
                             self.map(self.current_window, calibrate=True, fix_gaussian=True,  iters=iter_per_kf*3)
@@ -570,6 +570,11 @@ class BackEnd(mp.Process):
                             # self.map(self.current_window, calibrate=True, fix_gaussian=False,  iters=iter_per_kf*3)
                             # self.map(self.current_window, calibrate=True, fix_gaussian=False,  iters=iter_per_kf*5)
                             # self.map(self.current_window, calibrate=True, fix_gaussian=True,  iters=30)
+                        elif (calibration_identifier_cnt == 2):
+                            lr2 = self.config["Training"]["be_focal_lr"] if ("be_focal_lr" in self.config["Training"].keys()) else 0.002
+                            self.calibration_optimizers.update_focal_learning_rate(lr = lr2)
+                            self.map(self.current_window, calibrate=True, fix_gaussian=False, iters=iter_per_kf*2) # more iters for two views
+                            self.map(self.current_window, prune=True, iters=5)
 
                         else:
                             lr2 = self.config["Training"]["be_focal_lr"] if ("be_focal_lr" in self.config["Training"].keys()) else 0.002
@@ -590,6 +595,13 @@ class BackEnd(mp.Process):
                     
                     rich.print(f"[bold blue]BackEnd  Optimize:[/bold blue] [{cur_frame_idx}]: fx: {self.viewpoints[cur_frame_idx].fx:.3f}, fy: {self.viewpoints[cur_frame_idx].fy:.3f}, kappa: {self.viewpoints[cur_frame_idx].kappa:.6f}, calib_id: {self.viewpoints[cur_frame_idx].calibration_identifier}, iter_per_kf: {iter_per_kf}\n")
                     self.push_to_frontend("keyframe")
+
+                    # add depth points at last, because these points will not be optimized with one view.
+                    if (self.signal_calibration_change):
+                        self.add_next_kf(cur_frame_idx, self.viewpoints[cur_frame_idx], depth_map=depth_map) 
+                        self.map(self.current_window, calibrate=False, iters=iter_per_kf) # don't calibrate with one view. optimize gaussian
+                        self.map(self.current_window, prune=True)
+                        self.push_to_frontend("keyframe")
 
                 else:
                     raise Exception("Unprocessed data", data)
