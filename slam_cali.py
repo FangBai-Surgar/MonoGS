@@ -20,7 +20,7 @@ from utils.multiprocessing_utils import FakeQueue
 from utils_cali.slam_cali_backend import BackEndCali as BackEnd
 from utils_cali.slam_cali_frontend import FrontEndCali as FrontEnd
 from utils_cali.dataset_cali import load_dataset
-from utils_cali.eval_cali_utils import eval_ate, eval_rendering, save_gaussians_class, save_cali
+from utils_cali.eval_cali_utils import eval_ate, eval_rendering, save_ates, save_gaussians_class, save_cali
 
 
 from typing import NamedTuple
@@ -231,6 +231,7 @@ class SLAM:
             # save gaussians class
             save_gaussians_class(self.save_dir, self.gaussians)
             save_cali(self.save_dir, self.frontend.cameras, self.frontend.kf_indices, N_frames)
+            save_ates(self.save_dir, self.frontend.ates)
 
 
 

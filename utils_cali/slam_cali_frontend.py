@@ -18,48 +18,51 @@ from utils.slam_utils import get_loss_tracking, get_median_depth
 from optimizers import CalibrationOptimizer
 from gaussian_scale_space import image_conv_gaussian_separable
 from utils.slam_frontend import FrontEnd
-from utils_cali.eval_cali_utils import eval_ate, save_gaussians_class, save_cali
+from utils_cali.eval_cali_utils import eval_ate, save_gaussians_class, save_cali, save_ates
 
 import rich
 
 import pickle
 import os
 
-class Simulator():
-    def __init__(self, path):
-        self.load_intrinsics(path)
-
-    def load_intrinsics(self, path):
-        self.fx = []
-        self.fy = []
-        self.cali_id = []
-        i = 0
-        with open(path, "r") as f:
-            lines = f.readlines()
-            for line in lines: 
-                parts = line.split()
-                focal = float(parts[0])
-                if len(self.fx) != 0:
-                    i += 1 if focal != self.fx[-1] else 0
-                self.fx.append(focal)
-                self.fy.append(focal)
-                self.cali_id.append(i)
-
 class FrontEndCali(FrontEnd):
 
     def __init__(self, config):
         super().__init__(config)
 
-        # path = config["Dataset"]["intrinsic_path"]
-        # if config["Dataset"]["intrinsic_path"] is not None:
-        #     self.simulator = Simulator(config["Dataset"]["intrinsic_path"])
-        # else:
-        #     self.simulator = None
-        path = config.get("Dataset", {}).get("intrinsic_filename", None)
-        self.simulator = Simulator(config["Dataset"]["dataset_path"] + '/' + path) if path is not None else None
+        focal_changes_str = config.get("Dataset", {}).get("OnlineCalibration", {}).get("focal_changes", None)
+        self.focal_changes = self.parse_focal_changes(focal_changes_str) if focal_changes_str else []
+        # add dummy range when no focal changes are specified
+        # self.focal_changes = [
+        self.ates = []
         self.use_gt_poses = False
         self.add_perterbation = False
-    
+
+    def parse_focal_changes(self, focal_changes_str):
+        """
+        Parse the focal changes string and return a list of tuples (start_frame, focal, calibration_identifier).
+        Example input: "(5,200)(20,800)(50,400)"
+        Output: [(5, 200, 1), (20, 800, 2), (50, 400, 3)]
+        """
+        if not focal_changes_str:
+            return []
+
+        focal_changes = []
+        parts = focal_changes_str.strip().split(')')  # Split by closing parentheses
+
+        calibration_identifier = 1  # Start identifier from 0
+        for part in parts:
+            part = part.strip('()')  # Remove enclosing parentheses
+            if ',' in part:  # Ensure valid format
+                try:
+                    start, focal = part.split(',')
+                    focal_changes.append((int(start), float(focal), calibration_identifier))
+                    calibration_identifier += 1  # Increment for the next stage
+                except ValueError:
+                    print(f"Skipping malformed part: {part}")
+
+        return focal_changes
+
     def tracking_use_gt_poses(self, viewpoint):
         viewpoint.R = viewpoint.R_gt
         viewpoint.T = viewpoint.T_gt
@@ -83,6 +86,13 @@ class FrontEndCali(FrontEnd):
         print(f"self.signal_calibration_change: {self.signal_calibration_change}")
         cur_frame_idx = 0
         projection_matrix = None # projection_matrix is implemented as a property in Camera
+        
+        focal_ref = None  # Current focal value
+        range_idx = 0  # Current range index in self.focal_changes
+        # add dummy range when no focal changes are specified
+        if len(self.focal_changes) == 0:
+            self.focal_changes = [(len(self.dataset)+5, 100.0, 1)]
+
         tic = torch.cuda.Event(enable_timing=True)
         toc = torch.cuda.Event(enable_timing=True)
 
@@ -103,7 +113,7 @@ class FrontEndCali(FrontEnd):
                 tic.record()
                 if cur_frame_idx >= len(self.dataset):
                     if self.save_results:
-                        eval_ate(
+                        ate = eval_ate(
                             self.cameras,
                             # [i for i in range(0, self.dataset.num_imgs)], #when final frame is reached, evaluate the ATE of all frames
                             self.kf_indices,
@@ -112,6 +122,9 @@ class FrontEndCali(FrontEnd):
                             final=True,
                             monocular=self.monocular,
                         )
+                        self.ates.append((cur_frame_idx, ate))
+                        # save ates into a txt file
+                        save_ates(self.save_dir, self.ates)
                         save_gaussians(
                             self.gaussians, self.save_dir, "final", final=True
                         )
@@ -131,6 +144,20 @@ class FrontEndCali(FrontEnd):
                 if not self.initialized and self.requested_keyframe > 0:
                     time.sleep(0.01)
                     continue
+                
+                # set the current focal length based on the focal changes
+                if range_idx < len(self.focal_changes) - 1:
+                    next_start_frame = self.focal_changes[range_idx + 1][0]
+                    if cur_frame_idx >= next_start_frame:
+                        range_idx += 1
+                
+                if cur_frame_idx >= self.focal_changes[range_idx][0]:
+                    focal_ref = self.focal_changes[range_idx][1]
+                    calibration_identifier = self.focal_changes[range_idx][2]
+                else:
+                    focal_ref = None
+                    calibration_identifier = None
+
 
                 viewpoint = Camera.init_from_dataset(
                     self.dataset, cur_frame_idx, projection_matrix
@@ -138,15 +165,13 @@ class FrontEndCali(FrontEnd):
 
                 viewpoint.compute_grad_mask(self.config)
 
-                # if self.MODULE_TEST_CALIBRATION and self.simulator is not None:
-                if self.simulator is not None:
-                    viewpoint.calibration_identifier = self.simulator.cali_id[cur_frame_idx]
-                    focal_ref = None if viewpoint.calibration_identifier == 0 else self.simulator.fx[cur_frame_idx]
-                    viewpoint.fx_init = self.simulator.fx[cur_frame_idx]
-                    viewpoint.fy_init = self.simulator.fy[cur_frame_idx]
-                    viewpoint.kappa_init = 0.0 # backup
-                    # viewpoint.fx = self.simulator.fx[cur_frame_idx]
-                    # viewpoint.fy = self.simulator.fy[cur_frame_idx]
+                if focal_ref is not None:
+                    viewpoint.fx_init = focal_ref
+                    viewpoint.fy_init = focal_ref
+                    viewpoint.kappa_init = 0.0
+                    viewpoint.calibration_identifier = calibration_identifier
+                    # rich.print(f"  Frame {cur_frame_idx}: Updated focal: fx = {viewpoint.fx_init}, fy = {viewpoint.fy_init}")
+
                 if self.add_perterbation:
                     viewpoint.calibration_identifier = 1
                     focal_per = self.config["Dataset"]["focal_perturbation"] if 'focal_perturbation' in self.config["Dataset"] else 1.01
@@ -301,13 +326,14 @@ class FrontEndCali(FrontEnd):
                     and len(self.kf_indices) % self.save_trj_kf_intv == 0
                 ):
                     Log("Evaluating ATE at frame: ", cur_frame_idx)
-                    eval_ate(
+                    ate = eval_ate(
                         self.cameras,
                         self.kf_indices,
                         self.save_dir,
                         cur_frame_idx,
                         monocular=self.monocular,
                     )
+                    self.ates.append((cur_frame_idx, ate))
                 toc.record()
                 torch.cuda.synchronize()
                 if create_kf:
