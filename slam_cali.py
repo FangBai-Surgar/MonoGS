@@ -277,6 +277,9 @@ if __name__ == "__main__":
     
     calib_opts = OnlineCalibrationSettings()
     # adjust controlo params
+    assert config["self_calibration"]["enabled"] == args.require_calibration
+    assert config["self_calibration"]["radial_distortion_order"] in (0, 1)
+    
     calib_opts.require_calibration = args.require_calibration
     calib_opts.allow_lens_distortion = args.allow_lens_distortion and args.require_calibration
     print(f"calib_opts.require_calibration: {calib_opts.require_calibration}")
@@ -310,8 +313,8 @@ if __name__ == "__main__":
         tmp = args.config
         tmp = tmp.split(".")[0]
         config["Results"]["save_dir"] = save_dir
-        config["calib_opts_require_calibration"] = calib_opts.require_calibration
-        config["calib_opts_allow_lens_distortion"] = calib_opts.allow_lens_distortion
+        config["self_calibration"]["enabled"] = calib_opts.require_calibration
+        config["self_calibration"]["radial_distortion_order"] = 1 if calib_opts.allow_lens_distortion else 0
         mkdir_p(save_dir)
         with open(os.path.join(save_dir, "config.yml"), "w") as file:
             documents = yaml.dump(config, file)

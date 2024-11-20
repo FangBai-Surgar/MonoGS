@@ -30,38 +30,45 @@ class FrontEndCali(FrontEnd):
     def __init__(self, config):
         super().__init__(config)
 
-        focal_changes_str = config.get("Dataset", {}).get("OnlineCalibration", {}).get("focal_changes", None)
-        self.focal_changes = self.parse_focal_changes(focal_changes_str) if focal_changes_str else []
+
+        frame_id = config.get("self_calibration", {}).get("frame_id", None)
+        gt_fx = config.get("self_calibration", {}).get("gt_fx", None)
+        self.focal_change_ids, self.focal_change_focals = self.parse_focal_changes(frame_id, gt_fx) if frame_id else []
         # add dummy range when no focal changes are specified
-        # self.focal_changes = [
+
         self.ates = []
         self.use_gt_poses = False
         self.add_perterbation = False
 
-    def parse_focal_changes(self, focal_changes_str):
+    def parse_focal_changes(self, frame_id, gt_fx=None):
         """
-        Parse the focal changes string and return a list of tuples (start_frame, focal, calibration_identifier).
-        Example input: "(5,200)(20,800)(50,400)"
-        Output: [(5, 200, 1), (20, 800, 2), (50, 400, 3)]
+        Parse the focal changes string and return two lists.
+        Example input:     
+            frames: "100, 200, 300"
+            focals: "400, 300, 400"
+        Output: [100, 200, 300], [400, 300, 400]
+
+        Example input:     
+            frames: "100, 200, 300"
+            focals: "400, 300"
+        Output: [100, 200, 300], [None, None, None]
         """
-        if not focal_changes_str:
-            return []
+        if not frame_id:
+            return [], []
 
-        focal_changes = []
-        parts = focal_changes_str.strip().split(')')  # Split by closing parentheses
+        # Parse frame_list by splitting and removing whitespace
+        frame_list = list(map(int, frame_id.replace(" ", "").split(",")))
 
-        calibration_identifier = 1  # Start identifier from 0
-        for part in parts:
-            part = part.strip('()')  # Remove enclosing parentheses
-            if ',' in part:  # Ensure valid format
-                try:
-                    start, focal = part.split(',')
-                    focal_changes.append((int(start), float(focal), calibration_identifier))
-                    calibration_identifier += 1  # Increment for the next stage
-                except ValueError:
-                    print(f"Skipping malformed part: {part}")
+        # Parse focal_list if provided, else default to None
+        if gt_fx:
+            focal_list = list(map(int, gt_fx.replace(" ", "").split(",")))
+            # Ensure frames and focals lengths match
+            if len(frame_list) != len(focal_list):
+                raise ValueError("frames and focals must have the same number of entries.")
+        else:
+            focal_list = [None] * len(frame_list)
 
-        return focal_changes
+        return frame_list, focal_list
 
     def tracking_use_gt_poses(self, viewpoint):
         viewpoint.R = viewpoint.R_gt
@@ -89,9 +96,11 @@ class FrontEndCali(FrontEnd):
         
         focal_ref = None  # Current focal value
         range_idx = 0  # Current range index in self.focal_changes
+
         # add dummy range when no focal changes are specified
-        if len(self.focal_changes) == 0:
-            self.focal_changes = [(len(self.dataset)+5, 100.0, 1)]
+        if len(self.focal_change_ids) == 0:
+            self.focal_change_ids = [len(self.dataset)+5]
+            self.focal_change_focals = [None]
 
         tic = torch.cuda.Event(enable_timing=True)
         toc = torch.cuda.Event(enable_timing=True)
@@ -146,17 +155,17 @@ class FrontEndCali(FrontEnd):
                     continue
                 
                 # set the current focal length based on the focal changes
-                if range_idx < len(self.focal_changes) - 1:
-                    next_start_frame = self.focal_changes[range_idx + 1][0]
+                if range_idx < len(self.focal_change_ids) - 1:
+                    next_start_frame = self.focal_change_ids[range_idx + 1]
                     if cur_frame_idx >= next_start_frame:
                         range_idx += 1
                 
-                if cur_frame_idx >= self.focal_changes[range_idx][0]:
-                    focal_ref = self.focal_changes[range_idx][1]
-                    calibration_identifier = self.focal_changes[range_idx][2]
+                if cur_frame_idx >= self.focal_change_ids[range_idx]:
+                    focal_ref = self.focal_change_focals[range_idx]
+                    calibration_identifier = range_idx + 1
                 else:
                     focal_ref = None
-                    calibration_identifier = None
+                    calibration_identifier = 0
 
 
                 viewpoint = Camera.init_from_dataset(
@@ -167,7 +176,7 @@ class FrontEndCali(FrontEnd):
 
                 if focal_ref is not None:
                     viewpoint.fx_init = focal_ref
-                    viewpoint.fy_init = focal_ref
+                    viewpoint.fy_init = viewpoint.aspect_ratio * focal_ref
                     viewpoint.kappa_init = 0.0
                     viewpoint.calibration_identifier = calibration_identifier
                     # rich.print(f"  Frame {cur_frame_idx}: Updated focal: fx = {viewpoint.fx_init}, fy = {viewpoint.fy_init}")
@@ -202,16 +211,7 @@ class FrontEndCali(FrontEnd):
                     if self.requested_keyframe > 0:
                         time.sleep(0.01)
                         continue
-                
-                # rich.print(f"FrontEnd  Tracking t_gt: [{viewpoint.uid}]: t = {[f'{x.item():.8f}' for x in (viewpoint.T_gt)]}")
-                # rich.print(f"FrontEnd  Tracking t   : [{viewpoint.uid}]: t = {[f'{x.item():.8f}' for x in (viewpoint.T)]}")
-                
-                
-                # if self.MODULE_TEST_CALIBRATION and self.signal_calibration_change:
-                #     if focal_ref is not None:
-                #         rich.print(f"[bold magenta]At Frame {viewpoint.uid}, change focal length (fx) to: [/bold magenta] {focal_ref} ")
-                #         viewpoint.fx = focal_ref
-                #         viewpoint.fy = viewpoint.aspect_ratio * focal_ref
+            
 
                 self.cameras[cur_frame_idx] = viewpoint
 
