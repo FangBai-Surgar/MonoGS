@@ -1,7 +1,6 @@
 inherit_from: "configs/mono/replica_small/base_config.yaml"
 Dataset:
   dataset_path: "/datasets/replica_small/office0"
-  intrinsic_filename: "intrinsics.txt"
   type: 'replica'
   single_thread: False
   Calibration:
@@ -20,5 +19,8 @@ Dataset:
     distorted: False
   grad_mask_row: 32
   grad_mask_col: 32
-
+  OnlineCalibration:
+    focal_changes: "(5,200)(20,800)(50,400)"
+Results:
+  save_trj_kf_intv: 5
 
