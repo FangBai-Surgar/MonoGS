@@ -54,7 +54,8 @@ def evaluate_evo(poses_gt, poses_est, plot_dir, label, monocular=False):
         encoding="utf-8",
     ) as f:
         json.dump(ape_stats, f, indent=4)
-
+    if label != "final":
+        return ape_stat
     plot_mode = evo.tools.plot.PlotMode.xy
     fig = plt.figure()
     ax = evo.tools.plot.prepare_axis(fig, plot_mode)
@@ -71,7 +72,7 @@ def evaluate_evo(poses_gt, poses_est, plot_dir, label, monocular=False):
     ax.legend()
     plt.savefig(os.path.join(plot_dir, "evo_2dplot_{}.pdf".format(str(label))), dpi=90)
 
-    # if label == "final":
+    # 
     plot_mode = evo.tools.plot.PlotMode.xyz
     fig = plt.figure()
     ax = evo.tools.plot.prepare_axis(fig, plot_mode)
@@ -297,3 +298,27 @@ def save_cali(save_dir, frames, kf_indices, N_frames=None):
     plt.savefig(plot_file_path_pdf)
     plt.close()
     return AFLE/n if n != 0 else 0
+
+def save_ates(save_dir, ates):
+    os.makedirs(os.path.join(save_dir, 'ate'), exist_ok=True)
+    with open(save_dir + '/ate/ates.json', "w", encoding="utf-8") as f:
+        json.dump(ates, f, indent=4)
+    # plot a figure of ATE
+    plt.figure(figsize=(10, 6))
+    # Extract cur_frame_idx and ate values from ates
+    x, y = zip(*ates)  # Unpack ates into x (frame indices) and y (ATE values)
+
+    # Plot the ATEs
+    plt.plot(x, y, marker="o", label="ATE vs. Frame Index", color="b")
+
+    # Add labels, title, and legend
+    plt.xlabel("Frame Index (cur_frame_idx)")
+    plt.ylabel("Absolute Trajectory Error (ATE)")
+    plt.title("ATE vs. Frame Index")
+    plt.legend()
+    plt.grid(True)
+
+    # Save the figure
+    plot_path = os.path.join(save_dir, 'ate', 'ate_plot.png')
+    plt.savefig(plot_path)
+    print(f"ATE plot saved to: {plot_path}")
