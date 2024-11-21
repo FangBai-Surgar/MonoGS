@@ -53,12 +53,6 @@ def generate_config_files(base_dir, base_file, offices, widths, heights, focals)
                     new_filename = f"office{office}_{width}{height}_{focal}.yaml"
                     new_file_path = os.path.join(base_dir, new_filename)
 
-                    # read the intrinsic parameters from txt file config['Dataset']['dataset_path'], intrinsic_filename
-                    with open(os.path.join(config['Dataset']['dataset_path'], config['Dataset']['intrinsic_filename']), 'r') as file:
-                        # read the first line without \n to integer
-                        f_test = int(file.readline().strip())
-                    assert f_test == focal, f"Error: focal length in the intrinsic file is not equal to the focal length in the config file: {f_test} != {focal}"
-
                     data_dict[office_key].append(f"_{width}{height}_{focal}")
 
                     # Write the modified configuration to a new YAML file
@@ -80,11 +74,12 @@ print("Generating configuration files...")
 
 # Configuration settings
 base_directory = "/workspaces/src/MonoGS_dev/configs/mono/replica_small"
-base_filename = "office0.yaml"
+# base_directory = "/workspaces/src/MonoGS_dev/configs/mono/replica_small_cali"
+base_filename = "example.yaml"
 office_numbers = range(0, 1)  # Generate for office0 to office4
-widths = [640]           # Example widths
-heights = [480]          # Example heights
-focal_lengths = [300, 400, 510, 560, 600, 700, 800]  # Example focal lengths
+widths = [800]           # Example widths
+heights = [600]          # Example heights
+focal_lengths = [300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800, 850]  # Example focal lengths
 
 # Generate the configuration files
 generate_config_files(base_directory, base_filename, office_numbers, widths, heights, focal_lengths)
