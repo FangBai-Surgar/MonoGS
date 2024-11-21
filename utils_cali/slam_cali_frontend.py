@@ -33,7 +33,7 @@ class FrontEndCali(FrontEnd):
 
         frame_id = config.get("self_calibration", {}).get("frame_id", None)
         gt_fx = config.get("self_calibration", {}).get("gt_fx", None)
-        self.focal_change_ids, self.focal_change_focals = self.parse_focal_changes(frame_id, gt_fx) if frame_id else []
+        self.focal_change_ids, self.focal_change_focals = self.parse_focal_changes(frame_id, gt_fx) if frame_id else [], []
         # add dummy range when no focal changes are specified
 
         self.ates = []
