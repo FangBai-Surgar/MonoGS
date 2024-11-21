@@ -37,6 +37,7 @@ pip install gradio==4.29.0
 pip install pycolmap
 pip install imgui
 pip install imageio
+pip install gtsam
 ```
 
 ## Installation

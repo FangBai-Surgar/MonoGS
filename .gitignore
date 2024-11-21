@@ -19,4 +19,8 @@ test_*.py
 screenshots
 *output/*
 image*
-configs/*
+*.png
+*.pkl
+Fountain
+Herzjesu
+configs/mono/replica*

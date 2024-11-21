@@ -372,7 +372,7 @@ class SFM(mp.Process):
         progress_bar.close()
 
 
-    def run_phase2 (self, max_iters = 500, update_Gaussian = True, update_pose = False, update_calibration = False):
+    def run_phase2 (self, max_iters = 500, update_Gaussian = True, update_pose = False, update_calibration = False, use_scale_space = False):
         '''
         BA (Gaussian, pose, calibration)
         '''
@@ -386,7 +386,7 @@ class SFM(mp.Process):
                                     update_Gaussian = update_Gaussian,
                                     update_pose = update_pose,
                                     update_calibration = update_calibration,
-                                    use_scale_space = False,
+                                    use_scale_space = use_scale_space,
                                     densify_prune = densify_prune,
                                     reset_opacity = reset_opacity
                                     )
@@ -428,7 +428,7 @@ class SFM(mp.Process):
         progress_bar.close()
 
 
-    def optimize (self):
+    def optimize (self, phase1_iter = 200, phase3_iter = 500, phase2_DBA_iter = 100, phase2_CaliDBA_iter = 500, phase2_CaliDBA_GSS_iter = 0, set_focal_error=None):
 
         _, h, w = self.viewpoint_stack[0].original_image.shape
         self.image_margin_mask = torch.zeros(h, w).cuda()
@@ -439,7 +439,7 @@ class SFM(mp.Process):
 
         if self.calibration_optimizer is None:            
             self.calibration_optimizer = CalibrationOptimizer(self.viewpoint_stack, focal_reference = self.focal_reference, focal_optimizer_type = "Adam")
-            self.calibration_optimizer.update_focal_learning_rate (lr = 0.01) # 0.1 also works
+            self.calibration_optimizer.update_focal_learning_rate (lr = 0.03) # 0.1 also works
             self.calib_safe_guard = False
 
         if self.pose_optimizer is None:
@@ -455,19 +455,34 @@ class SFM(mp.Process):
         sfm_gui.Log("start SfM optimization")
 
         # Gaussian initialization
-        self.run_phase1(max_iters = 200)
+        self.run_phase1(max_iters = phase1_iter)
 
-        # Bundle adjustment
-        self.run_phase2(max_iters = 100, update_Gaussian = True, update_pose = False, update_calibration = False)
-        self.run_phase2(max_iters = 500, update_Gaussian = True, update_pose = True, update_calibration = True)
+        # Bundle adjustment (no calibration, no pose update) to densify 3D Gaussians
+        self.run_phase2(max_iters = phase2_DBA_iter, update_Gaussian = True, update_pose = False, update_calibration = False)
 
+        if set_focal_error is not None:
+            ''' For debug and test
+            '''
+            noise_fx = set_focal_error
+            for viewpoint in self.viewpoint_stack:
+                focal = viewpoint.fx + noise_fx
+                viewpoint.fx = focal
+                viewpoint.fy = viewpoint.aspect_ratio * focal
+            rich.print(f"[bold red][Notice]: old fx {focal - noise_fx} ====> new fx {focal}.  Noise added {noise_fx}  [/bold red]")
+
+        # SelfCalibrating Bundle adjustment
+        self.run_phase2(max_iters = phase2_CaliDBA_GSS_iter, update_Gaussian = True, update_pose = True, update_calibration = True)
+        self.run_phase2(max_iters = phase2_CaliDBA_iter, update_Gaussian = True, update_pose = True, update_calibration = True, use_scale_space = False)
+        
         # refinement using SSIM 
-        self.run_phase3(max_iters = 500)
+        self.run_phase3(max_iters = phase3_iter)
 
         # self.show_rendered_images()
 
         sfm_gui.Log(f"SfM optimization complete.")
         torch.cuda.synchronize()
+
+        self.close()
 
 
     def close(self):
@@ -479,6 +494,44 @@ class SFM(mp.Process):
         time.sleep(0.01)
     
 
+    def eval_data(self):
+        W2C_arr, fx_arr, fy_arr, kappa_arr, rendered_images, captured_images, error_images = [], [], [], [], [], [], []
+        for viewpoint in self.viewpoint_stack:
+            R = viewpoint.R.detach().cpu().numpy()
+            T = viewpoint.T.detach().cpu().numpy()
+            fx = viewpoint.fx
+            fy = viewpoint.fy
+            kappa = viewpoint.kappa
+            original_image = viewpoint.original_image.detach().cpu()
+            rendering = render(viewpoint, self.gaussians, self.pipe, self.background,
+                                scaling_modifier=1.0,
+                                override_color=None,
+                                mask=None,)["render"].detach().cpu()
+            render_image = torch.clamp(rendering, 0.0, 1.0)
+            W2C = np.eye(4)
+            W2C[0:3, 0:3] = R
+            W2C[0:3, 3] = T
+            W2C_arr.append (W2C)
+            fx_arr.append (fx)
+            fy_arr.append (fy)
+            kappa_arr.append (kappa)
+            rendered_images.append(render_image)
+            captured_images.append(original_image)
+            error_images.append(torch.abs(rendering - original_image))
+            # print(error_images[-1])
+        return (W2C_arr, fx_arr, fy_arr, kappa_arr, rendered_images, captured_images, error_images) 
+    
+
+    @staticmethod
+    def tensor2rgb (image):
+        '''
+            OpenCV stores images in BGR order instead of RGB
+            plt.imshow(cv2.cvtColor(image,cv2.COLOR_BGR2RGB))
+        '''
+        rgb = torch.clamp(image, min=0, max=1.0) * 255
+        rgb = rgb.byte().permute(1, 2, 0).contiguous().cpu().numpy()
+        return rgb
+    
 
     # def optimize_backup (self, update_Gaussian = False, update_pose = False, update_calibration = False,  use_ssim_loss = False):
 

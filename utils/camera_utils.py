@@ -214,6 +214,9 @@ class Camera(nn.Module):
             )
 
     def clean(self):
+        del self.original_image
+        del self.depth
+        
         self.original_image = None
         self.depth = None
         self.grad_mask = None

@@ -123,8 +123,10 @@ class SLAM:
         )
 
         backend_process = mp.Process(target=self.backend.run)
+        backend_process.name="SLAM Backend"
         if self.use_gui:
             gui_process = mp.Process(target=slam_gui.run, args=(self.params_gui,))
+            gui_process.name="SLAM GUI"
             gui_process.start()
             time.sleep(5)
 
