@@ -44,9 +44,6 @@ Training:
   lr:
     cam_rot_delta: 0.003
     cam_trans_delta: 0.001
-  be_focal_lr: 0.002
-  be_focal_lr_cnt_s2: 0.002
-  after_mapping_itr_num: 30
 
 opt_params:
   iterations: 30000
@@ -77,3 +74,7 @@ model_params:
 pipeline_params:
   convert_SHs_python: False
   compute_cov3D_python: False
+
+self_calibration:
+  enabled: False
+  radial_distortion_order: 0
