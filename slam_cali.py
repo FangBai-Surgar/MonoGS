@@ -262,8 +262,8 @@ if __name__ == "__main__":
     parser = ArgumentParser(description="Training script parameters")
     parser.add_argument("--config", type=str, default="configs/mono/replica_cali/office4_sp.yaml")
     parser.add_argument("--eval", action="store_true", default=True)
-    parser.add_argument("--require_calibration", action="store_true", default=False)
-    parser.add_argument("--allow_lens_distortion", action="store_true", default=False)
+    # parser.add_argument("--require_calibration", action="store_true", default=False)
+    # parser.add_argument("--allow_lens_distortion", action="store_true", default=False)
 
     args = parser.parse_args(sys.argv[1:])
 
@@ -277,11 +277,14 @@ if __name__ == "__main__":
     
     calib_opts = OnlineCalibrationSettings()
     # adjust controlo params
-    assert config["self_calibration"]["enabled"] == args.require_calibration
-    assert config["self_calibration"]["radial_distortion_order"] in (0, 1)
+    # print(f"args.require_calibration: {config["Dataset"]["SelfCalibration"]["radial_distortion"]}")
+    # assert config["Dataset"]["SelfCalibration"]["enabled"] == args.require_calibration
+    assert config["Dataset"]["SelfCalibration"]["radial_distortion"] in (0, 1)
     
-    calib_opts.require_calibration = args.require_calibration
-    calib_opts.allow_lens_distortion = args.allow_lens_distortion and args.require_calibration
+    calib_opts.require_calibration = config["Dataset"]["SelfCalibration"]["enabled"]
+    require_cali = True if config["Dataset"]["SelfCalibration"]["radial_distortion"] ==1 else False
+    calib_opts.allow_lens_distortion = require_cali and calib_opts.require_calibration
+
     print(f"calib_opts.require_calibration: {calib_opts.require_calibration}")
     print(f"calib_opts.allow_lens_distortion: {calib_opts.allow_lens_distortion}")
 
@@ -313,8 +316,8 @@ if __name__ == "__main__":
         tmp = args.config
         tmp = tmp.split(".")[0]
         config["Results"]["save_dir"] = save_dir
-        config["self_calibration"]["enabled"] = calib_opts.require_calibration
-        config["self_calibration"]["radial_distortion_order"] = 1 if calib_opts.allow_lens_distortion else 0
+        config["Dataset"]["SelfCalibration"]["enabled"] = calib_opts.require_calibration
+        config["Dataset"]["SelfCalibration"]["radial_distortion_order"] = 1 if calib_opts.allow_lens_distortion else 0
         mkdir_p(save_dir)
         with open(os.path.join(save_dir, "config.yml"), "w") as file:
             documents = yaml.dump(config, file)

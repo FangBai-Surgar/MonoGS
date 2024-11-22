@@ -120,7 +120,7 @@ class BackEndCali(BackEnd):
                     pose_opt_params = []
                     calib_opt_frames_stack = []
                     frames_to_optimize = self.config["Training"]["pose_window"]
-                    iter_per_kf = self.mapping_itr_num if self.single_thread else self.config.get("self_calibration", {}).get("backend_params", {}).get("after_mapping_itr_num", 30)
+                    iter_per_kf = self.mapping_itr_num if self.single_thread else self.config.get("Dataset", {}).get("SelfCalibration", {}).get("backend_params", {}).get("after_mapping_itr_num", 30)
                     if not self.initialized:
                         if (
                             len(self.current_window)
@@ -202,26 +202,26 @@ class BackEndCali(BackEnd):
                     if self.calibration_optimizers is not None:
                         if (self.calibration_identifier_cnt == 1): # Don't update 3D structure with one view
                             rich.print("[bold green]cali_id_cnt == 1[/bold green]")
-                            lr1 = self.config.get("self_calibration", {}).get("backend_params", {}).get("lr_cnt1", 0.002)
+                            lr1 = self.config.get("Dataset", {}).get("SelfCalibration", {}).get("backend_params", {}).get("lr_cnt1", 0.002)
                             self.calibration_optimizers.update_focal_learning_rate(lr = lr1)
                             self.map(self.current_window, calibrate=True, fix_gaussian=True,  iters=iter_per_kf*3)
 
                         elif (self.calibration_identifier_cnt == 2):
                             rich.print("[bold green]cali_id_cnt == 2[/bold green]")
-                            lr2 = self.config.get("self_calibration", {}).get("backend_params", {}).get("lr_cnt2", 0.002)
+                            lr2 = self.config.get("Dataset", {}).get("SelfCalibration", {}).get("backend_params", {}).get("lr_cnt2", 0.002)
                             self.calibration_optimizers.update_focal_learning_rate(lr = lr2)
                             self.map(self.current_window, calibrate=True, fix_gaussian=False, iters=iter_per_kf*2) # more iters for two views
                             # self.map(self.current_window, prune=True, iters=5)
                             # afle = eval_cali(self.viewpoints, None)
                             # rich.print(f"[bold blue]BackEnd  AFLE:[/bold blue] [{cur_frame_idx}]: {afle:.6f}\n")
                         elif (self.calibration_identifier_cnt == len(self.current_window)):
-                            lr2 = self.config.get("self_calibration", {}).get("backend_params", {}).get("lr_cnt2", 0.002)
+                            lr2 = self.config.get("Dataset", {}).get("SelfCalibration", {}).get("backend_params", {}).get("lr_cnt2", 0.002)
                             self.calibration_optimizers.update_focal_learning_rate(lr = lr2)
                             self.map(self.current_window, calibrate=True, fix_gaussian=False, iters=iter_per_kf*2) # BA with full window
 
                         else:
                             # rich.print("[bold green]cali_id_cnt != 1 and != 2[/bold green]")
-                            lr2 = self.config.get("self_calibration", {}).get("backend_params", {}).get("lr_cnt2", 0.002)
+                            lr2 = self.config.get("Dataset", {}).get("SelfCalibration", {}).get("backend_params", {}).get("lr_cnt2", 0.002)
                             # lr = helper(self.counter, lr2, 0.001, lr_delay_steps=2, lr_delay_mult=0.1, max_steps=1000000)
                             self.calibration_optimizers.update_focal_learning_rate(lr = lr2)
                             # test 1 + rgbd + add kf at first + adam -> afle = 7

@@ -31,10 +31,14 @@ class FrontEndCali(FrontEnd):
         super().__init__(config)
 
 
-        frame_id = config.get("self_calibration", {}).get("frame_id", None)
-        gt_fx = config.get("self_calibration", {}).get("gt_fx", None)
-        self.focal_change_ids, self.focal_change_focals = self.parse_focal_changes(frame_id, gt_fx) if frame_id else [], []
+        frame_id = config.get("Dataset", {}).get("SelfCalibration", {}).get("frame_id", None)
+        gt_fx = config.get("Dataset", {}).get("SelfCalibration", {}).get("gt_fx", None)
+        print(f"frame_id: {frame_id}")
+        print(f"gt_fx: {gt_fx}")
+        self.parse_focal_changes(frame_id, gt_fx)
         # add dummy range when no focal changes are specified
+        print(f"self.focal_change_ids: {self.focal_change_ids}")
+        print(f"self.focal_change_focals: {self.focal_change_focals}")
 
         self.ates = []
         self.use_gt_poses = False
@@ -53,8 +57,10 @@ class FrontEndCali(FrontEnd):
             focals: "400, 300"
         Output: [100, 200, 300], [None, None, None]
         """
-        if not frame_id:
-            return [], []
+        if len(frame_id) < 1:
+            self.focal_change_ids = []
+            self.focal_change_focals = []
+            return
 
         # Parse frame_list by splitting and removing whitespace
         frame_list = list(map(int, frame_id.replace(" ", "").split(",")))
@@ -67,8 +73,9 @@ class FrontEndCali(FrontEnd):
                 raise ValueError("frames and focals must have the same number of entries.")
         else:
             focal_list = [None] * len(frame_list)
-
-        return frame_list, focal_list
+        self.focal_change_ids = frame_list
+        self.focal_change_focals = focal_list
+        # return frame_list, focal_list
 
     def tracking_use_gt_poses(self, viewpoint):
         viewpoint.R = viewpoint.R_gt
