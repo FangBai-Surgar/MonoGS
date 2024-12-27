@@ -165,43 +165,7 @@ def read_groundtruth_camera(ground_truth_camera_file):
 
 
 
-def main(image_dir, gt_dir, downsample_scale = 2**2, phase1_iter = 200, phase3_iter = 500, phase2_DBA_iter = 100, phase2_CaliDBA_iter = 500, phase2_CaliDBA_GSS_iter = 0, set_focal_error = None, save_to_dir = None):
-
-    # Set up command line argument parser
-    parser = ArgumentParser(description="Training script parameters")
-    lp = ModelParams(parser)
-    op = OptimizationParams(parser)
-    pp = PipelineParams(parser)
-    parser.add_argument('--ip', type=str, default="127.0.0.1")
-    parser.add_argument('--port', type=int, default=6009)
-    parser.add_argument('--debug_from', type=int, default=-1)
-    parser.add_argument('--detect_anomaly', action='store_true', default=False)
-    parser.add_argument("--test_iterations", nargs="+", type=int, default=[7_000, 30_000])
-    parser.add_argument("--save_iterations", nargs="+", type=int, default=[7_000, 30_000])
-    parser.add_argument("--quiet", action="store_true")
-    parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
-    parser.add_argument("--start_checkpoint", type=str, default = None)
-    args = parser.parse_args(sys.argv[1:])
-    args.save_iterations.append(args.iterations)
-    
-    print("Optimizing " + args.model_path)
-
-    # Initialize system state (RNG)
-    safe_state(args.quiet)
-
-
-    dataset = lp.extract(args)
-    opt = op.extract(args)
-    pipe = pp.extract(args)
-
-
-    opt.iterations = 100
-    opt.densification_interval = 30
-    opt.opacity_reset_interval = 200
-    opt.densify_from_iter = 49
-    opt.densify_until_iter = 2000
-    opt.densify_grad_threshold = 0.0002
-
+def main(opt, image_dir, gt_dir, downsample_scale = 2**2, phase1_iter = 200, phase3_iter = 500, phase2_DBA_iter = 100, phase2_CaliDBA_iter = 500, phase2_CaliDBA_GSS_iter = 0, set_focal_error = None, save_to_dir = None):
 
     # perform colmap reconstruction
     reconstruction = ColMap(image_dir)
@@ -265,7 +229,7 @@ def main(image_dir, gt_dir, downsample_scale = 2**2, phase1_iter = 200, phase3_i
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
 
     ## visualization
-    use_gui = True
+    use_gui = False
     sfm = SFM(pipe, use_gui, viewpoint_stack, gaussians, opt, cameras_extent)
     sfm.require_calibration = True
     sfm.allow_lens_distortion = True
@@ -362,7 +326,6 @@ def main(image_dir, gt_dir, downsample_scale = 2**2, phase1_iter = 200, phase3_i
             time.sleep(0.01)
 
 
-
     psnr_mean = float(np.mean(psnr_array))
     ssim_mean = float(np.mean(ssim_array))
     lpips_mean = float(np.mean(lpips_array))
@@ -378,6 +341,44 @@ def main(image_dir, gt_dir, downsample_scale = 2**2, phase1_iter = 200, phase3_i
 if __name__ == "__main__":
 
     mp.set_start_method('spawn')
+
+
+    # Set up command line argument parser
+    parser = ArgumentParser(description="Training script parameters")
+    lp = ModelParams(parser)
+    op = OptimizationParams(parser)
+    pp = PipelineParams(parser)
+    parser.add_argument('--ip', type=str, default="127.0.0.1")
+    parser.add_argument('--port', type=int, default=6009)
+    parser.add_argument('--debug_from', type=int, default=-1)
+    parser.add_argument('--detect_anomaly', action='store_true', default=False)
+    parser.add_argument("--test_iterations", nargs="+", type=int, default=[7_000, 30_000])
+    parser.add_argument("--save_iterations", nargs="+", type=int, default=[7_000, 30_000])
+    parser.add_argument("--quiet", action="store_true")
+    parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
+    parser.add_argument("--start_checkpoint", type=str, default = None)
+    args = parser.parse_args(sys.argv[1:])
+    args.save_iterations.append(args.iterations)
+    
+    print("Optimizing " + args.model_path)
+
+    # Initialize system state (RNG)
+    safe_state(args.quiet)
+
+
+    dataset = lp.extract(args)
+    opt = op.extract(args)
+    pipe = pp.extract(args)
+
+
+    opt.iterations = 100
+    opt.densification_interval = 30
+    opt.opacity_reset_interval = 200
+    opt.densify_from_iter = 49
+    opt.densify_until_iter = 2000
+    opt.densify_grad_threshold = 0.0002
+
+
 
     """ DATASET URL
     
@@ -411,10 +412,12 @@ if __name__ == "__main__":
         0 2764.16 1006.81
     '''
 
+
+
     results = {}
 
-    runSfMDebug = 1
-    runBatchExp = 0
+    runSfMDebug = 0
+    runBatchExp = 1
     runSaveRendering = 0
 
     GSS_iter = 0
@@ -424,7 +427,7 @@ if __name__ == "__main__":
 
         image_dir = "/hdd/sfm/Strecha-Fountain/Fountain/images"
         gt_dir =    "/hdd/sfm/Strecha-Fountain/Fountain/groundtruth"
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 100,
                                                                                     phase3_iter = 5,
                                                                                     phase2_DBA_iter = 20,
@@ -442,14 +445,14 @@ if __name__ == "__main__":
     if runSaveRendering:
         image_dir = "/hdd/sfm/Strecha-Herzjesu/Herzjesu/images"
         gt_dir =    "/hdd/sfm/Strecha-Herzjesu/Herzjesu/groundtruth"
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 600+GSS_iter,
                                                                                     phase2_CaliDBA_iter = 0,
                                                                                     phase2_CaliDBA_GSS_iter = 0,
                                                                                     save_to_dir=os.path.join(os.getcwd(), "Herzjesu/without"))
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 100,
@@ -458,14 +461,14 @@ if __name__ == "__main__":
                                                                                     save_to_dir=os.path.join(os.getcwd(), "Herzjesu/withCalib"))
         image_dir = "/hdd/sfm/Strecha-Fountain/Fountain/images"
         gt_dir =    "/hdd/sfm/Strecha-Fountain/Fountain/groundtruth"
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 600+GSS_iter,
                                                                                     phase2_CaliDBA_iter = 0,
                                                                                     phase2_CaliDBA_GSS_iter = 0,
                                                                                     save_to_dir=os.path.join(os.getcwd(), "Fountain/without"))
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 100,
@@ -480,7 +483,7 @@ if __name__ == "__main__":
         gt_dir =    "/hdd/sfm/Strecha-Herzjesu/Herzjesu/groundtruth"
 
         # w/o clibration
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 600+GSS_iter,
@@ -490,7 +493,7 @@ if __name__ == "__main__":
         results["Herzjesu[w/o]"] = (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa)
     
         # w/ calibration
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 100,
@@ -501,7 +504,7 @@ if __name__ == "__main__":
 
 
         # w/ calibration. 50
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 100,
@@ -512,7 +515,7 @@ if __name__ == "__main__":
 
 
         # w/ calibration. 100
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 100,
@@ -523,7 +526,7 @@ if __name__ == "__main__":
 
 
         # w/ calibration. 150
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 100,
@@ -534,7 +537,7 @@ if __name__ == "__main__":
 
 
         # w/ calibration. -50
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 100,
@@ -545,7 +548,7 @@ if __name__ == "__main__":
 
 
         # w/ calibration. -100
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 100,
@@ -557,7 +560,7 @@ if __name__ == "__main__":
 
 
         # w/ calibration. -150
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 100,
@@ -573,7 +576,7 @@ if __name__ == "__main__":
         gt_dir =    "/hdd/sfm/Strecha-Fountain/Fountain/groundtruth"
 
         # w/o clibration
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 600+GSS_iter,
@@ -583,7 +586,7 @@ if __name__ == "__main__":
         results["Fountain[w/o]"] = (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa)
     
         # w/ calibration
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 100,
@@ -594,7 +597,7 @@ if __name__ == "__main__":
 
 
         # w/ calibration. 50
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 100,
@@ -605,7 +608,7 @@ if __name__ == "__main__":
 
 
         # w/ calibration. 100
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 100,
@@ -616,7 +619,7 @@ if __name__ == "__main__":
 
 
         # w/ calibration. 150
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 100,
@@ -627,7 +630,7 @@ if __name__ == "__main__":
 
 
         # w/ calibration. -50
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 100,
@@ -638,7 +641,7 @@ if __name__ == "__main__":
 
 
         # w/ calibration. -100
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 100,
@@ -649,7 +652,7 @@ if __name__ == "__main__":
 
 
         # w/ calibration. -150
-        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(image_dir, gt_dir, downsample_scale = 2**2,
+        (psnr_mean, ssim_mean, lpips_mean, ape_stat_trans, ape_stat_rot, fx, fy, kappa) = main(opt, image_dir, gt_dir, downsample_scale = 2**2,
                                                                                     phase1_iter = 200,
                                                                                     phase3_iter = 500,
                                                                                     phase2_DBA_iter = 100,
