@@ -66,6 +66,12 @@ class SFM(mp.Process):
 
 
     def __init__(self, pipe = None, use_gui = True, viewpoint_stack = None, gaussians = None, opt = None, cameras_extent = None) -> None:
+
+        start = torch.cuda.Event(enable_timing=True)
+        end = torch.cuda.Event(enable_timing=True)
+
+        start.record()
+
         self.pipe = pipe
         self.use_gui = use_gui
 
@@ -129,6 +135,9 @@ class SFM(mp.Process):
             self.gui_process = mp.Process(target=sfm_gui.run, args=(params_gui,))
             self.gui_process.start()
             time.sleep(3)
+
+
+        end.record()
 
 
 
@@ -263,6 +272,11 @@ class SFM(mp.Process):
             return        
         self.dense_point_cloud = BasicPointCloud(points=positions, colors=colors, normals=normals)
         
+    def zero_grad(self):
+        with torch.no_grad():
+            self.calibration_optimizer.zero_grad()
+            self.pose_optimizer.zero_grad()
+            self.gaussians.optimizer.zero_grad(set_to_none = True)
 
 
     def optimize_one_step_sequel (self, iteration, use_scale_space = False, use_ssim_loss = False, densify_prune = False, reset_opacity = False):
@@ -349,6 +363,7 @@ class SFM(mp.Process):
         '''
         Initialize 3D Gaussians for sparse SfM point-cloud
         '''
+        self.zero_grad()
         progress_bar = tqdm(range(1, max_iters+1), desc="Phase1: Training progress")
         cam_cnt = 0
         for iteration in range(0, max_iters):
@@ -376,6 +391,7 @@ class SFM(mp.Process):
         '''
         BA (Gaussian, pose, calibration)
         '''
+        self.zero_grad()
         progress_bar = tqdm(range(1, max_iters+1), desc="Phase2: Training progress")
         cam_cnt = 0
         for iteration in range(0, max_iters):
@@ -405,6 +421,7 @@ class SFM(mp.Process):
         '''
         Refine 3D Gaussians with SSIM loss
         '''
+        self.zero_grad()
         progress_bar = tqdm(range(1, max_iters+1), desc="Phase3: Training progress")
         cam_cnt = 0
         for iteration in range(0, max_iters):
@@ -439,7 +456,7 @@ class SFM(mp.Process):
 
         if self.calibration_optimizer is None:            
             self.calibration_optimizer = CalibrationOptimizer(self.viewpoint_stack, focal_reference = self.focal_reference, focal_optimizer_type = "Adam")
-            self.calibration_optimizer.update_focal_learning_rate (lr = 0.03) # 0.1 also works
+            self.calibration_optimizer.update_focal_learning_rate (lr = 0.01) # 0.1 also works
             self.calib_safe_guard = False
 
         if self.pose_optimizer is None:
