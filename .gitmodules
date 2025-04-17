@@ -3,7 +3,7 @@
 	url = https://gitlab.inria.fr/bkerbl/simple-knn.git
 [submodule "submodules/diff-gaussian-rasterization"]
 	path = submodules/diff-gaussian-rasterization
-	url = https://github.com/rmurai0610/diff-gaussian-rasterization-w-pose.git
+	url = https://github.com/FangBaiUTS/diff-gaussian-rasterization-w-pose-calib.git
 [submodule "submodules/DepthAnythingV2"]
 	path = submodules/DepthAnythingV2
 	url = git@github.com:DepthAnything/Depth-Anything-V2.git

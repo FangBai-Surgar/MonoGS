@@ -3,29 +3,48 @@
 
 # Getting Started
 
-## Environment setup
+## Pytorch and xformers
+
+### Environment setup1
 - Ubuntu 22.04
 - nvidia-driver-535
 - cuda-toolkit 11.8
 - Python 3.9
 
-
-Dependencies
 ```
 pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 pip3 install -U xformers --index-url https://download.pytorch.org/whl/cu118
+```
 
-pip install numpy matplotlib rerun-sdk
+### Environment setup2
+- Ubuntu 24.04
+- nvidia-driver-560
+- cuda-toolkit 12.6
+- Python 3.12
+
+```
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+pip3 install -U xformers --index-url https://download.pytorch.org/whl/cu126
+```
+
+
+
+
+## Dependencies
+```
+pip install numpy matplotlib
 pip install opencv-contrib-python
 pip install opencv-python
 pip install pyyaml
 pip install munch
 pip install wandb
-pip install open3d
-pip install glfw
 pip install imgviz
-pip install pyopengl
+
+pip install PyOpenGL PyOpenGL_accelerate
+pip install glfw
 pip install PyGLM
+pip install open3d
+
 pip install rich
 pip install trimesh
 pip install evo
@@ -41,19 +60,29 @@ pip install pyscsp
 pip install scipy
 pip3 install pymeshlab
 pip install gtsam
+
+pip install rerun-sdk
 ```
 
 ## Installation
+
+Download with `--recursive` option:
 ```
 git clone git@github.com:FangBai-Surgar/MonoGS.git --recursive
 cd MonoGS
 ```
 
-Setup
+
+Build submodules
 ```
-pip install submodules/simple-knn
-pip install submodules/diff-gaussian-rasterization
+pip install submodules/simple-knn --no-build-isolation
+pip install submodules/diff-gaussian-rasterization --no-build-isolation
 ```
+
+## Issues
+
+I did spot an error when installing submodules/diff-gaussian-rasterization and submodules/simple-knn, if pytorch was intalled via conda. If you run into such error, please delete your conda virutual environment, or simply create another new one, and install pytorch with pip. Then everything will go well.
+
 
 
 ## Quick Demo
