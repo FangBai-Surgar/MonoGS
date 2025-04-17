@@ -1,13 +1,12 @@
 [submodule "submodules/simple-knn"]
 	path = submodules/simple-knn
 	url = https://gitlab.inria.fr/bkerbl/simple-knn.git
-[submodule "submodules/diff-gaussian-rasterization"]
-	path = submodules/diff-gaussian-rasterization
-	url = https://github.com/FangBaiUTS/diff-gaussian-rasterization-w-pose-calib.git
 [submodule "submodules/DepthAnythingV2"]
 	path = submodules/DepthAnythingV2
 	url = git@github.com:DepthAnything/Depth-Anything-V2.git
 [submodule "submodules/Replica-Dataset"]
 	path = submodules/Replica-Dataset
 	url = git@github.com:Mia-99/Replica-Dataset.git
-
+[submodule "submodules/diff-gaussian-rasterization"]
+	path = submodules/diff-gaussian-rasterization
+	url = https://github.com/FangBaiUTS/diff-gaussian-rasterization-w-pose-calib.git
