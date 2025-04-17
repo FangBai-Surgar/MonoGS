@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from gaussian_splatting.utils.graphics_utils import getProjectionMatrix2, getWorld2View2
-from utils.slam_utils import image_gradient, image_gradient_mask
+from slam_impl.slam_utils import image_gradient, image_gradient_mask
 
 
 class Camera(nn.Module):

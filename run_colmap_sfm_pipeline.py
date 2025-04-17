@@ -17,7 +17,7 @@ from argparse import ArgumentParser, Namespace
 from gaussian_splatting.arguments import ModelParams, PipelineParams, OptimizationParams
 
 from gaussian_splatting.utils.general_utils import safe_state
-from utils.multiprocessing_utils import FakeQueue, clone_obj
+from slam_impl.multiprocessing_utils import FakeQueue, clone_obj
 
 from PIL import Image
 from gaussian_splatting.utils.general_utils import PILtoTorch
@@ -26,8 +26,8 @@ import open3d as o3d
 import copy
 
 
-from colmap_utils.colmap import ColMap
-from colmap_utils.gaussian_splatting_utils import assemble_3DGS_cameras
+from utils.colmap_utils.colmap import ColMap
+from utils.colmap_utils.gaussian_splatting_utils import assemble_3DGS_cameras
 
 
 
@@ -42,7 +42,7 @@ from sfm import SFM, print_viewpoint_stack
 from gaussian_viewer import Viewer, create_gaussians_gl
 
 
-from utils.eval_utils import evaluate_evo, eval_ate, eval_rendering
+from slam_impl.eval_utils import evaluate_evo, eval_ate, eval_rendering
 
 
 from evo.core import metrics, trajectory
@@ -64,9 +64,9 @@ import pathlib
 import cv2
 
 
-from matplot_utils import annotate_image
+from utils.matplot_utils import annotate_image
 
-# from gtsam_utils.bundle_adjustment import bundle_adjustment
+# from utils.gtsam_utils.bundle_adjustment import bundle_adjustment
 
 
 
@@ -499,7 +499,7 @@ if __name__ == "__main__":
     phase2_CaliDBA_GSS_iter = 200 # Gaussian is fixed when performing scale space optimization
 
     
-    if False:
+    if True:
 
         downsample_scale = 2**2
 

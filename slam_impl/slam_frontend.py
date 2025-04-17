@@ -7,16 +7,16 @@ import torch.multiprocessing as mp
 from gaussian_splatting.gaussian_renderer import render
 from gaussian_splatting.utils.graphics_utils import getProjectionMatrix2, getWorld2View2
 from gui import gui_utils
-from utils.camera_utils import Camera
-from utils.eval_utils import eval_ate, save_gaussians
-from utils.logging_utils import Log
-from utils.multiprocessing_utils import clone_obj
-from utils.pose_utils import update_pose
-from utils.slam_utils import get_loss_tracking, get_median_depth, get_loss_tracking_no_grad_mask
+from slam_impl.camera_utils import Camera
+from slam_impl.eval_utils import eval_ate, save_gaussians
+from slam_impl.logging_utils import Log
+from slam_impl.multiprocessing_utils import clone_obj
+from slam_impl.pose_utils import update_pose
+from slam_impl.slam_utils import get_loss_tracking, get_median_depth, get_loss_tracking_no_grad_mask
 
-from optimizers import CalibrationOptimizer, PoseOptimizer, lr_exp_decay_helper
+from slam_impl.optimizers import CalibrationOptimizer, PoseOptimizer, lr_exp_decay_helper
 
-from gaussian_scale_space import image_conv_gaussian_separable
+from slam_impl.gaussian_scale_space import image_conv_gaussian
 import copy
 import rich
 from PIL import Image
@@ -748,7 +748,7 @@ class FrontEnd(mp.Process):
             rgb_pixel_mask = rgb_pixel_mask * viewpoint.grad_mask # don't apply gradient mask with Gaussian scale space
 
         # Gaussian scale space
-        gt_image_scale_t = image_conv_gaussian_separable(gt_image, sigma=gaussian_scale_t, epsilon=0.01) if gaussian_scale_t > 0.5 else gt_image
+        gt_image_scale_t = image_conv_gaussian(gt_image, sigma=gaussian_scale_t, epsilon=0.01) if gaussian_scale_t > 0.5 else gt_image
 
 
         if save_info is not None:
@@ -788,7 +788,7 @@ class FrontEnd(mp.Process):
             image_ab = (torch.exp(viewpoint.exposure_a)) * image + viewpoint.exposure_b
      
             # Gaussian scale space
-            image_scale_t = image_conv_gaussian_separable(image_ab, sigma=gaussian_scale_t, epsilon=0.01) if gaussian_scale_t > 0.5 else image_ab
+            image_scale_t = image_conv_gaussian(image_ab, sigma=gaussian_scale_t, epsilon=0.01) if gaussian_scale_t > 0.5 else image_ab
 
 
             use_smooth_l1 = (gaussian_scale_t > 0.5)

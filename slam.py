@@ -13,13 +13,13 @@ import wandb
 from gaussian_splatting.scene.gaussian_model import GaussianModel
 from gaussian_splatting.utils.system_utils import mkdir_p
 from gui import gui_utils, slam_gui
-from utils.config_utils import load_config
-from utils.dataset import load_dataset
-from utils.eval_utils import save_gaussians, save_cameras, save_ATE_records
-from utils.logging_utils import Log
-from utils.multiprocessing_utils import FakeQueue
-from utils.slam_backend import BackEnd
-from utils.slam_frontend import FrontEnd
+from slam_impl.config_utils import load_config
+from slam_impl.dataset import load_dataset
+from slam_impl.eval_utils import save_gaussians, save_cameras, save_ATE_records
+from slam_impl.logging_utils import Log
+from slam_impl.multiprocessing_utils import FakeQueue
+from slam_impl.slam_backend import BackEnd
+from slam_impl.slam_frontend import FrontEnd
 
 from typing import NamedTuple
 
@@ -28,7 +28,7 @@ import numpy as np
 
 
 from gaussian_viewer import Viewer, create_gaussians_gl
-from utils_cali.eval_cali_utils import eval_ate, eval_rendering, save_gaussians_class, save_cali
+from slam_impl.eval_cali_utils import eval_ate, eval_rendering, save_gaussians_class, save_cali
 
 
 import shutil

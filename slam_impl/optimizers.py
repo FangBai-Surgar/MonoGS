@@ -2,7 +2,7 @@
 import torch
 import torch.optim.lr_scheduler as lr_scheduler
 
-from utils.pose_utils import update_pose
+from slam_impl.pose_utils import update_pose
 
 import numpy as np
 

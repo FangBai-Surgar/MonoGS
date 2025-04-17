@@ -4,17 +4,17 @@ import numpy as np
 import glob
 
 
-from utils.camera_utils import Camera
+from slam_impl.camera_utils import Camera
 from gaussian_splatting.scene.gaussian_model import GaussianModel
 from gaussian_splatting.gaussian_renderer import render
 from gaussian_splatting.utils.system_utils import mkdir_p
 
-from utils.dataset import load_dataset, ReplicaParser, TUMParser, EuRoCParser, RealsenseDataset
+from slam_impl.dataset import load_dataset, ReplicaParser, TUMParser, EuRoCParser, RealsenseDataset
 
 
 import yaml
 from munch import munchify
-from utils.config_utils import load_config
+from slam_impl.config_utils import load_config
 
 import json
 from PIL import Image

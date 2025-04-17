@@ -3,8 +3,8 @@ import torch
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
-from utils.slam_utils import image_gradient, image_gradient_mask
-from utils.config_utils import load_config
+from slam_impl.slam_utils import image_gradient, image_gradient_mask
+from slam_impl.config_utils import load_config
 from utils_cali.dataset_cali import load_dataset
 from munch import munchify
 from utils_cali.camera_cali_utils import CameraForCalibration as Camera
@@ -21,7 +21,7 @@ from utils_cali.slam_cali_frontend import Simulator
 from gaussian_splatting.scene.gaussian_model import GaussianModel
 from gui import gui_utils, slam_gui
 import torch.multiprocessing as mp
-from utils.multiprocessing_utils import FakeQueue
+from slam_impl.multiprocessing_utils import FakeQueue
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
 from gaussian_splatting.utils.image_utils import psnr
 from gaussian_splatting.utils.loss_utils import ssim

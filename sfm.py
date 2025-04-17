@@ -30,19 +30,19 @@ from gaussian_splatting.utils.graphics_utils import BasicPointCloud
 from gaussian_splatting.utils.general_utils import helper as lr_helper
 
 
-from utils.pose_utils import update_pose
+from slam_impl.pose_utils import update_pose
 
 
 from gui import gui_utils, sfm_gui
-from utils.multiprocessing_utils import FakeQueue, clone_obj
+from slam_impl.multiprocessing_utils import FakeQueue, clone_obj
 
 
-# from depth_anything import DepthAnything
+# from utils.depth_anything import DepthAnything
 
 
-from optimizers import CalibrationOptimizer, PoseOptimizer, LineDetection, lr_exp_decay_helper
+from slam_impl.optimizers import CalibrationOptimizer, PoseOptimizer, LineDetection, lr_exp_decay_helper
 
-from gaussian_scale_space import image_conv_gaussian_separable
+from slam_impl.gaussian_scale_space import image_conv_gaussian
 
 from matplotlib import pyplot as plt
 
@@ -440,8 +440,8 @@ class SFM(mp.Process):
 
         # Gaussian scale space for focal length calibration
         if use_scale_space and self.gaussian_scale_t > 0.5:
-            image_scale_t = image_conv_gaussian_separable(image, sigma=self.gaussian_scale_t, epsilon=0.01)
-            gt_image_scale_t = image_conv_gaussian_separable(gt_image, sigma=self.gaussian_scale_t, epsilon=0.01)
+            image_scale_t = image_conv_gaussian(image, sigma=self.gaussian_scale_t, epsilon=0.01)
+            gt_image_scale_t = image_conv_gaussian(gt_image, sigma=self.gaussian_scale_t, epsilon=0.01)
         else:
             image_scale_t = image
             gt_image_scale_t = gt_image
@@ -845,7 +845,8 @@ if __name__ == "__main__":
 
     # print(opt.__dict__)
     # print(pipe.__dict__)
-
+    opt.require_calibration = True
+    opt.allow_lens_distortion = True
 
 
     opt.iterations = 200
@@ -887,7 +888,7 @@ if __name__ == "__main__":
     
 
     ## visualization
-    use_gui = False
+    use_gui = True
     sfm = SFM(pipe=pipe, use_gui=use_gui, viewpoint_stack=viewpoint_stack, gaussians=gaussians, opt=opt, cameras_extent=cameras_extent)
     sfm.require_calibration = True
     sfm.allow_lens_distortion = True

@@ -16,7 +16,6 @@ from utils.pose_utils import update_pose
 from utils.slam_utils import get_loss_tracking, get_median_depth
 
 from optimizers import CalibrationOptimizer
-from gaussian_scale_space import image_conv_gaussian_separable
 from utils.slam_frontend import FrontEnd
 from utils_cali.eval_cali_utils import eval_ate, save_gaussians_class, save_cali
 

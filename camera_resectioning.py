@@ -28,17 +28,17 @@ from gaussian_splatting.utils.graphics_utils import BasicPointCloud
 from gaussian_splatting.utils.general_utils import helper as lr_helper
 
 
-from utils.camera_utils import Camera
-from utils.pose_utils import update_pose
+from slam_impl.camera_utils import Camera
+from slam_impl.pose_utils import update_pose
 
 
 from gui import gui_utils, sfm_gui
-from utils.multiprocessing_utils import FakeQueue, clone_obj
+from slam_impl.multiprocessing_utils import FakeQueue, clone_obj
 
 
-from optimizers import CalibrationOptimizer, PoseOptimizer, LineDetection, lr_exp_decay_helper
+from slam_impl.optimizers import CalibrationOptimizer, PoseOptimizer, LineDetection, lr_exp_decay_helper
 
-from gaussian_scale_space import image_conv_gaussian_separable
+from slam_impl.gaussian_scale_space import image_conv_gaussian
 
 from matplotlib import pyplot as plt
 
@@ -50,9 +50,9 @@ import pickle
 from gaussian_viewer import Viewer, create_gaussians_gl
 
 
-from colmap_utils.gaussian_splatting_utils import assemble_3DGS_cameras_from_3DGS_JSON_file
+from utils.colmap_utils.gaussian_splatting_utils import assemble_3DGS_cameras_from_3DGS_JSON_file
 
-from matplot_utils import annotate_image, annotate_image_by_table
+from utils.matplot_utils import annotate_image, annotate_image_by_table
 
 import itertools
 import cv2
@@ -629,8 +629,8 @@ class CameraResectioning(mp.Process):
 
         # Gaussian scale space for focal length calibration
         if use_scale_space and self.gaussian_scale_t > 0.5:
-            image_scale_t = image_conv_gaussian_separable(image, sigma=self.gaussian_scale_t, epsilon=0.01)
-            gt_image_scale_t = image_conv_gaussian_separable(gt_image, sigma=self.gaussian_scale_t, epsilon=0.01)
+            image_scale_t = image_conv_gaussian(image, sigma=self.gaussian_scale_t, epsilon=0.01)
+            gt_image_scale_t = image_conv_gaussian(gt_image, sigma=self.gaussian_scale_t, epsilon=0.01)
         else:
             image_scale_t = image
             gt_image_scale_t = gt_image
@@ -900,7 +900,7 @@ if __name__ == "__main__":
         return success, len(rle_focal)
 
 
-    if False:
+    if True:
 
         max_iters = 500
         dataset_root_dir = "/hdd/3DGS"

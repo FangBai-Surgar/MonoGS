@@ -30,7 +30,7 @@ from gui.gui_utils import (
 
 import rich
 
-from utils.logging_utils import Log
+from slam_impl.logging_utils import Log
 from gaussian_splatting.scene.cameras import Camera
 
 o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Error)

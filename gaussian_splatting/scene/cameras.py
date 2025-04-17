@@ -14,7 +14,6 @@ from torch import nn
 import numpy as np
 from gaussian_splatting.utils.graphics_utils import getWorld2View2, getProjectionMatrix2, getProjectionMatrix, fov2focal, focal2fov
 
-from utils.pose_utils import SO3_exp
 
 
 class Camera(nn.Module):
@@ -122,14 +121,6 @@ class Camera(nn.Module):
         self.kappa_init = self.kappa
 
 
-        # add some noise and see if the algorithm can correctly optimize it
-        # noiseDeltaR = SO3_exp(torch.tensor([0.01, 0.01, 0.01])).double() 
-        # noiseDeltaT = torch.tensor([0.1, 0.1, 0.1], dtype=torch.double)
-
-        # self.T = self.T + noiseDeltaT
-        # self.R = self.R @ noiseDeltaR
-
-        
 
 
     @property

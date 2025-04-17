@@ -7,12 +7,12 @@ from tqdm import tqdm
 
 from gaussian_splatting.gaussian_renderer import render
 from gaussian_splatting.utils.loss_utils import l1_loss, ssim
-from utils.logging_utils import Log
-from utils.multiprocessing_utils import clone_obj
-from utils.pose_utils import update_pose
-from utils.slam_utils import get_loss_mapping, get_loss_tracking, get_median_depth
+from slam_impl.logging_utils import Log
+from slam_impl.multiprocessing_utils import clone_obj
+from slam_impl.pose_utils import update_pose
+from slam_impl.slam_utils import get_loss_mapping, get_loss_tracking, get_median_depth
 
-from optimizers import CalibrationOptimizer, PoseOptimizer, lr_exp_decay_helper
+from slam_impl.optimizers import CalibrationOptimizer, PoseOptimizer, lr_exp_decay_helper
 import numpy as np
 import copy
 import rich

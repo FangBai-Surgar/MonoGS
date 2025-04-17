@@ -19,7 +19,7 @@ import time
 
 
 
-def image_conv_gaussian_separable (image : torch.Tensor, sigma=1, epsilon=0.01) -> torch.Tensor:
+def image_conv_gaussian (image : torch.Tensor, sigma=1, epsilon=0.01) -> torch.Tensor:
     """ Convolve an image (rgd, or gray) by Discrete Gassian kernel from Tony Lindeberg
     see. https://github.com/tonylindeberg/pyscsp    
     The implementation takes advantage of the fact that Gaussian kernel is separable.
@@ -71,7 +71,7 @@ def image_conv_gaussian_separable (image : torch.Tensor, sigma=1, epsilon=0.01) 
 
 
 
-def image_conv_gaussian (image : torch.Tensor, sigma=1, epsilon=0.01) -> torch.Tensor:
+def image_conv_gaussian_naive (image : torch.Tensor, sigma=1, epsilon=0.01) -> torch.Tensor:
     """ Convolve an image (rgd, or gray) by Discrete Gassian kernel from Tony Lindeberg
     see. https://github.com/tonylindeberg/pyscsp    
     This implementation is less efficient than exploiting the separable kernel.
@@ -190,8 +190,8 @@ if __name__ == "__main__":
     print("\n## 2D conv and 1D conv by separability ##")
 
 
-    conv_img = image_conv_gaussian(image, sigma=4, epsilon = 0.01)
-    conv_img_sep = image_conv_gaussian_separable(image, sigma=4, epsilon = 0.01)
+    conv_img = image_conv_gaussian_naive(image, sigma=4, epsilon = 0.01)
+    conv_img_sep = image_conv_gaussian(image, sigma=4, epsilon = 0.01)
 
     print(f"test 1D (of separable kernel) and 2D convolution difference.\n\terror in total: {torch.norm(conv_img - conv_img_sep)}")
     print(f"\terror in channel 1: {torch.norm(conv_img[0] - conv_img_sep[0])}")
@@ -200,18 +200,18 @@ if __name__ == "__main__":
 
 
 
-    conv_img1 = image_conv_gaussian(image[0], sigma=4, epsilon = 0.01)
-    conv_img2 = image_conv_gaussian(image[1], sigma=4, epsilon = 0.01)
-    conv_img3 = image_conv_gaussian(image[2], sigma=4, epsilon = 0.01)
+    conv_img1 = image_conv_gaussian_naive(image[0], sigma=4, epsilon = 0.01)
+    conv_img2 = image_conv_gaussian_naive(image[1], sigma=4, epsilon = 0.01)
+    conv_img3 = image_conv_gaussian_naive(image[2], sigma=4, epsilon = 0.01)
 
     # print(f"test 2D convolution. error in channel 1: {torch.norm(conv_img[0] - conv_img1)}")
     # print(f"test 2D convolution. error in channel 2: {torch.norm(conv_img[1] - conv_img2)}")
     # print(f"test 2D convolution. error in channel 3: {torch.norm(conv_img[2] - conv_img3)}")
 
 
-    conv_img_c1 = image_conv_gaussian_separable(image[0], sigma=4, epsilon = 0.01)
-    conv_img_c2 = image_conv_gaussian_separable(image[1], sigma=4, epsilon = 0.01)
-    conv_img_c3 = image_conv_gaussian_separable(image[2], sigma=4, epsilon = 0.01)
+    conv_img_c1 = image_conv_gaussian(image[0], sigma=4, epsilon = 0.01)
+    conv_img_c2 = image_conv_gaussian(image[1], sigma=4, epsilon = 0.01)
+    conv_img_c3 = image_conv_gaussian(image[2], sigma=4, epsilon = 0.01)
 
 
     print(f"test 1D (of separable kernel) and 2D convolution difference. error in channel 1: {torch.norm(conv_img_c1 - conv_img1)}")
@@ -274,8 +274,8 @@ if __name__ == "__main__":
     data_2d = data_buffer.reshape((9, 7))
     data_2d_tensor = torch.from_numpy(data_2d).type(torch.float64)
 
-    pytorch_conv_2 = image_conv_gaussian(data_2d_tensor, sigma=1, epsilon = 0.1)
-    pytorch_conv_11 = image_conv_gaussian_separable(data_2d_tensor, sigma=1, epsilon = 0.1)
+    pytorch_conv_2 = image_conv_gaussian_naive(data_2d_tensor, sigma=1, epsilon = 0.1)
+    pytorch_conv_11 = image_conv_gaussian(data_2d_tensor, sigma=1, epsilon = 0.1)
 
 
     pyscsp_conv = pyscsp.discscsp.discgaussconv(
@@ -387,45 +387,45 @@ if __name__ == "__main__":
 
     t0 = time.time()
 
-    conv_imgs = image_conv_gaussian(images.to("cuda"), sigma=4, epsilon = 0.01)
+    conv_imgs = image_conv_gaussian_naive(images.to("cuda"), sigma=4, epsilon = 0.01)
     torch.cuda.current_stream().synchronize()
 
     t1 = time.time()
     
-    conv_imgs_sep = image_conv_gaussian_separable(images.to("cuda"), sigma=4, epsilon = 0.01)
+    conv_imgs_sep = image_conv_gaussian(images.to("cuda"), sigma=4, epsilon = 0.01)
     torch.cuda.current_stream().synchronize()
 
     t2 = time.time()
 
-    print(f"\ttime on Cuda: image_conv_gaussian:           = {t1 - t0}")
-    print(f"\ttime on Cuda: image_conv_gaussian_separable: = {t2 - t1}   which is {(t1-t0)/(t2-t1)} times faster")
+    print(f"\ttime on Cuda: image_conv_gaussian_naive:           = {t1 - t0}")
+    print(f"\ttime on Cuda: image_conv_gaussian:                 = {t2 - t1}   which is {(t1-t0)/(t2-t1)} times faster")
 
 
 
     t0 = time.time()
 
-    conv_imgs = image_conv_gaussian(images.cpu(), sigma=4, epsilon = 0.01)
+    conv_imgs = image_conv_gaussian_naive(images.cpu(), sigma=4, epsilon = 0.01)
     torch.cuda.current_stream().synchronize()
 
     t1 = time.time()
     
-    conv_imgs_sep = image_conv_gaussian_separable(images.cpu(), sigma=4, epsilon = 0.01)
+    conv_imgs_sep = image_conv_gaussian(images.cpu(), sigma=4, epsilon = 0.01)
     torch.cuda.current_stream().synchronize()
 
     t2 = time.time()
 
-    print(f"\ttime on CPU:  image_conv_gaussian:           = {t1 - t0}")
-    print(f"\ttime on CPU:  image_conv_gaussian_separable: = {t2 - t1}   which is {(t1-t0)/(t2-t1)} times faster")
+    print(f"\ttime on CPU:  image_conv_gaussian_naive:           = {t1 - t0}")
+    print(f"\ttime on CPU:  image_conv_gaussian:                 = {t2 - t1}   which is {(t1-t0)/(t2-t1)} times faster")
 
 
 
 
     print(f"difference after convolution: \n\tconv_imgs - conv_imgs_sep = {torch.norm(conv_imgs - conv_imgs_sep)}")
 
-    conv_img1 = image_conv_gaussian(images[0], sigma=4, epsilon = 0.01)
-    conv_img2 = image_conv_gaussian(images[1], sigma=4, epsilon = 0.01)
-    conv_img3 = image_conv_gaussian(images[2], sigma=4, epsilon = 0.01)
-    conv_img4 = image_conv_gaussian(images[3], sigma=4, epsilon = 0.01)
+    conv_img1 = image_conv_gaussian_naive(images[0], sigma=4, epsilon = 0.01)
+    conv_img2 = image_conv_gaussian_naive(images[1], sigma=4, epsilon = 0.01)
+    conv_img3 = image_conv_gaussian_naive(images[2], sigma=4, epsilon = 0.01)
+    conv_img4 = image_conv_gaussian_naive(images[3], sigma=4, epsilon = 0.01)
 
     print(f"\terror in image1:  {torch.norm(conv_imgs_sep[0] - conv_img1)}")
     print(f"\terror in image2:  {torch.norm(conv_imgs_sep[1] - conv_img2)}")

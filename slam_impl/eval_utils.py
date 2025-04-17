@@ -1,10 +1,8 @@
 import json
 import os
-import matplotlib
-matplotlib.use('Agg')
+
 import cv2
 import evo
-import evo.main_config
 import numpy as np
 import torch
 from evo.core import metrics, trajectory
@@ -21,17 +19,14 @@ from gaussian_splatting.gaussian_renderer import render
 from gaussian_splatting.utils.image_utils import psnr
 from gaussian_splatting.utils.loss_utils import ssim
 from gaussian_splatting.utils.system_utils import mkdir_p
-from utils.logging_utils import Log
+from slam_impl.logging_utils import Log
 
 import copy
-import pickle
-# write a dict
 
 def evaluate_evo(poses_gt, poses_est, plot_dir, label, monocular=False):
     ## Plot
     traj_ref = PosePath3D(poses_se3=poses_gt)
     traj_est = PosePath3D(poses_se3=poses_est)
-
     traj_est_aligned = copy.deepcopy(traj_est)
     traj_est_aligned.align(traj_ref, correct_scale=monocular)
     # below old method does not work anymore
@@ -69,27 +64,8 @@ def evaluate_evo(poses_gt, poses_est, plot_dir, label, monocular=False):
         max_map=ape_stats["max"],
     )
     ax.legend()
-    plt.savefig(os.path.join(plot_dir, "evo_2dplot_{}.pdf".format(str(label))), dpi=90)
+    plt.savefig(os.path.join(plot_dir, "evo_2dplot_{}.png".format(str(label))), dpi=90)
 
-    # if label == "final":
-    plot_mode = evo.tools.plot.PlotMode.xyz
-    fig = plt.figure()
-    ax = evo.tools.plot.prepare_axis(fig, plot_mode)
-    ax.set_title(f"ATE RMSE: {ape_stat}")
-    # SETTINGS.plot_axis_marker_scale = 0.1
-    # SETTINGS.plot_reference_axis_marker_scale = 0.1
-    # SETTINGS.plot_pose_correspondences = True
-    evo.tools.plot.traj(ax, plot_mode, traj_ref, "--", "gray", "gt")
-    evo.tools.plot.traj_colormap(
-        ax,
-        traj_est_aligned,
-        ape_metric.error,
-        plot_mode,
-        min_map=ape_stats["min"],
-        max_map=ape_stats["max"],
-    )
-    ax.legend()
-    plt.savefig(os.path.join(plot_dir, "evo_3dplot_{}.pdf".format(str(label))), dpi=90)
     return ape_stat
 
 
@@ -102,7 +78,7 @@ def eval_ate(frames, kf_ids, save_dir, iterations, final=False, monocular=False)
     def gen_pose_matrix(R, T):
         pose = np.eye(4)
         pose[0:3, 0:3] = R.cpu().numpy() if isinstance(R, torch.Tensor) else R
-        pose[0:3, 3] = T.cpu().numpy() if isinstance(R, torch.Tensor) else T
+        pose[0:3, 3] = T.cpu().numpy() if isinstance(T, torch.Tensor) else T
         return pose
 
     for kf_id in kf_ids:
@@ -139,6 +115,7 @@ def eval_ate(frames, kf_ids, save_dir, iterations, final=False, monocular=False)
     )
     # wandb.log({"frame_idx": latest_frame_idx, "ate": ate})
     return ate
+
 
 def eval_rendering(
     frames,
@@ -206,94 +183,62 @@ def eval_rendering(
     )
     return output
 
-def save_gaussians_class(save_dir, gaussians):
-    os.makedirs(os.path.join(save_dir, 'gs'), exist_ok=True)
-    with open(save_dir + '/gs/instance.pkl', 'wb') as f:
-        pickle.dump(gaussians, f)
 
-def eval_cali(frames, kf_indices=None):
-
-    # select the calibration id != 0
-    n=0
-    AFLE=0
-    if kf_indices is None:
-        for id, kf in frames.items():
-            if kf.calib_id != 0:
-                n += 1
-                AFLE += abs(kf.fx_init - kf.fx)
+def save_gaussians(gaussians, name, iteration, final=False):
+    if name is None:
+        return
+    if final:
+        point_cloud_path = os.path.join(name, "point_cloud/final")
     else:
-        for kf_id in kf_indices:
-            kf = frames[kf_id]
-            if kf.calib_id != 0:
-                n += 1
-                AFLE += abs(kf.fx_init - kf.fx) 
-    return AFLE/n if n != 0 else 0
+        point_cloud_path = os.path.join(
+            name, "point_cloud/iteration_{}".format(str(iteration))
+        )
+    gaussians.save_ply(os.path.join(point_cloud_path, "point_cloud.ply"))
 
-def save_cali(save_dir, frames, kf_indices, ATE_records=None):
-    cali_data = dict()
-    cali_id, focal_est, focal_gt = [], [], []
-    kappa_est, kappa_gt = [], []
-    focal_percentage = []
-    # select the calibration id != 0
-    n=0
-    AFLE=0
 
-    for kf_id in kf_indices:
-        kf = frames[kf_id]
 
-        cali_id.append(frames[kf_id].uid)
-        focal_est.append(frames[kf_id].fx)
-        focal_gt.append(frames[kf_id].fx_init)
-        focal_percentage.append( abs(frames[kf_id].fx_init - frames[kf_id].fx) / frames[kf_id].fx_init)
+def save_cameras(save_dir, iteration, viewpoint_dict):
+    viewpoint_info = {}
+    uid_stack, R_stack, T_stack, fx_stack, fy_stack, kappa_stack, calib_id_stack = [], [], [], [], [], [], []
+    for frame_idx, viewpoint in viewpoint_dict.items():
+        uid = viewpoint.uid
+        R = viewpoint.R.cpu().numpy() if isinstance(viewpoint.R, torch.Tensor) else viewpoint.R
+        T = viewpoint.T.cpu().numpy() if isinstance(viewpoint.T, torch.Tensor) else viewpoint.T
+        fx = viewpoint.fx
+        fy = viewpoint.fy
+        kappa = viewpoint.kappa
+        calib_id = viewpoint.calib_id
 
-        kappa_est.append(frames[kf_id].kappa)
-        kappa_gt.append(frames[kf_id].kappa_init)
-        if kf.calib_id != 0:
-            n += 1
-            AFLE += abs(frames[kf_id].fx_init - frames[kf_id].fx) 
+        uid_stack.append ( uid )
+        R_stack.append( R.tolist() )
+        T_stack.append( T.tolist() )
+        fx_stack.append( fx )
+        fy_stack.append( fy )
+        kappa_stack.append ( kappa )
+        calib_id_stack.append ( calib_id )
 
-    cali_data["AFLE"] = AFLE/n if n != 0 else 0
-    cali_data["cali_id"] = cali_id
-    cali_data["focal_est"] = focal_est
-    cali_data["focal_gt"] = focal_gt
-    cali_data["kappa_est"] = kappa_est
-    cali_data["kappa_gt"] = kappa_gt
-    cali_data["focal_percentage"] = focal_percentage
-    cali_data["ATE_records"] = ATE_records
+    viewpoint_info["uid"] = uid_stack
+    viewpoint_info["R"] = R_stack
+    viewpoint_info["T"] = T_stack
+    viewpoint_info["fx"] = fx_stack
+    viewpoint_info["fy"] = fy_stack
+    viewpoint_info["kappa"] = kappa_stack
+    viewpoint_info["calib_id"] = calib_id_stack
 
-    cali_dir = os.path.join(save_dir, "cali")
-    plot_dir = os.path.join(save_dir, "cali", "plot")
-    mkdir_p(cali_dir)
-    mkdir_p(plot_dir)
-    json.dump(
-        cali_data,
-        open(os.path.join(cali_dir, "final_result.json"), "w", encoding="utf-8"),
-        indent=4,
-    )
-    plt.figure(figsize=(10, 6))
-    plt.plot(cali_data['cali_id'], cali_data['focal_percentage'], marker='o')
-    plt.title('Focal Percentage vs Frame ID')
-    plt.xlabel('Frame ID')
-    plt.ylabel('Focal Percentage')
-    plt.grid(True)
+    camera_dir = os.path.join(save_dir, "cameras")
+    mkdir_p( camera_dir )
+    with open(
+        os.path.join(camera_dir, "iteration_{}.json".format(str(iteration))),
+        "w",
+        encoding="utf-8",
+    ) as f:
+        json.dump(viewpoint_info, f, indent=4)
 
-    # Save the plot in the plot directory
-    plot_file_path_pdf = os.path.join(plot_dir, 'focal_percentage_vs_cali_id.pdf')
-    plt.savefig(plot_file_path_pdf)
-    plt.close()
 
-    plt.figure(figsize=(10, 6))
-    plt.plot(cali_data['cali_id'], cali_data["focal_gt"], marker='o', label='Focal Ground Truth')
-    plt.plot(cali_data['cali_id'], cali_data["focal_est"], marker='o', label='Focal Estimate')
-    plt.title('Focal vs Frame ID')
-    plt.xlabel('Frame ID')
-    plt.ylabel('Focal')
-    plt.grid(True)
-    # Display the legend
-    plt.legend()
-
-    # Save the plot in the plot directory
-    plot_file_path_pdf = os.path.join(plot_dir, 'focal_vs_cali_id.pdf')
-    plt.savefig(plot_file_path_pdf)
-    plt.close()
-    return AFLE/n if n != 0 else 0
+def save_ATE_records(save_dir, ATE_records):
+    with open(
+        os.path.join(save_dir, "ATE_records.json"),
+        "w",
+        encoding="utf-8",
+    ) as f:
+        json.dump(ATE_records, f, indent=4)
